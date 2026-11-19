@@ -29,12 +29,12 @@
       '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.72), rgba(19,28,49,0.96)), url(\'assets/bg/bg_town.png\') center/cover">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
           '<h2 style="margin:0;color:var(--gold)">🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
-          '<button type="button" class="btn-sec" id="btnRand">🎲 สุ่ม</button>' +
+          '<button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' +
         '</div>' +
-        '<p style="color:#cbd5e1;font-size:0.86rem;margin:4px 0 10px">แต่งตัวละคร Pixel Art และเลือกอาชีพ แล้วออกเดินทางปราบมังกร!</p>' +
-        '<label style="font-size:0.8rem;color:var(--mute)">ชื่อนักผจญภัย</label>' +
-        '<input id="inpName" value="' + DH.esc(charDraft.name) + '" maxlength="18" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:#fff;font:inherit;font-weight:700;margin-bottom:10px">' +
-        '<div style="display:flex;align-items:center;gap:12px;background:rgba(15,23,42,0.85);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px">' +
+        '<p style="color:#cbd5e1;font-size:0.86rem;margin:4px 0 10px">ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!</p>' +
+        '<label style="font-size:0.82rem;color:var(--mute);font-weight:700">ชื่อนักผจญภัย</label>' +
+        '<input id="inpName" value="' + DH.esc(charDraft.name) + '" maxlength="18" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:#fff;font:inherit;font-weight:700;margin:4px 0 10px">' +
+        '<div style="display:flex;align-items:center;gap:12px;background:rgba(15,23,42,0.88);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px">' +
           DH.Avatar.render(charDraft.look, charDraft.job, { large: true }) +
           '<div style="flex:1;font-size:0.84rem">' +
             '<div style="font-weight:800;font-size:1rem;color:var(--gold)">' + j.icon + ' อาชีพ: ' + j.name + '</div>' +
@@ -42,25 +42,38 @@
             '<div style="color:var(--accent);margin-top:2px">การ์ดติดตัว: ' + DH.CARDS[j.startCard].icon + ' ' + DH.CARDS[j.startCard].name + '</div>' +
           '</div>' +
         '</div>' +
-        '<div style="font-size:0.8rem;color:var(--mute)">สีผิว · สีผม · สีชุด</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:4px 0 8px">' +
-          '<div class="swatch-row">' + DH.SKIN_TONES.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.skin === i ? "on" : "") + '" data-skin="' + i + '" style="background:' + c + '"></span>'; }).join("") + '</div>' +
-          '<div class="swatch-row">' + DH.HAIR_COLORS.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.hairColor === i ? "on" : "") + '" data-hc="' + i + '" style="background:' + c + '"></span>'; }).join("") + '</div>' +
-          '<div class="swatch-row">' + DH.OUTFIT_COLORS.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.outfit === i ? "on" : "") + '" data-oc="' + i + '" style="background:' + c + '"></span>'; }).join("") + '</div>' +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">' +
-          '<button type="button" class="btn-sec" id="btnHair">ทรงผม: แบบ ' + ((charDraft.look.hair || 0) + 1) + '/6</button>' +
-          '<button type="button" class="btn-sec" id="btnHat">หมวก: ' + DH.HATS[(charDraft.look.hat || 0) % 6] + '</button>' +
-        '</div>' +
-        '<div style="font-size:0.85rem;font-weight:700;margin-bottom:6px">เลือกอาชีพ</div>' +
-        '<div class="job-grid">' + Object.keys(DH.JOBS).map(function (jk) {
+        '<div style="font-size:0.88rem;font-weight:800;color:var(--gold);margin-bottom:6px">1. เลือกอาชีพ</div>' +
+        '<div class="job-grid" style="margin-bottom:12px">' + Object.keys(DH.JOBS).map(function (jk) {
           var jb = DH.JOBS[jk];
           return '<button type="button" class="job-opt ' + (charDraft.job === jk ? "on" : "") + '" data-job="' + jk + '">' +
             '<b>' + jb.icon + ' ' + jb.name + '</b>' +
             '<div style="font-size:0.75rem;color:var(--mute)">' + DH.esc(jb.passive) + '</div>' +
           '</button>';
         }).join("") + '</div>' +
-        '<label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:0.88rem;cursor:pointer">' +
+        '<div style="font-size:0.88rem;font-weight:800;color:var(--gold);margin-bottom:6px">2. ปรับแต่งตัวละคร</div>' +
+        '<div class="cust-box">' +
+          '<div class="cust-row">' +
+            '<span class="cust-lbl">🧑 สีผิว</span>' +
+            '<div class="swatch-row">' + DH.SKIN_TONES.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.skin === i ? "on" : "") + '" data-skin="' + i + '" style="background:' + c + '" title="สีผิว ' + (i + 1) + '"></span>'; }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cust-row">' +
+            '<span class="cust-lbl">💇 ทรงผม</span>' +
+            '<button type="button" class="btn-sec" id="btnHair" style="padding:6px 12px">แบบที่ ' + ((charDraft.look.hair || 0) + 1) + ' / 6 ▸</button>' +
+          '</div>' +
+          '<div class="cust-row">' +
+            '<span class="cust-lbl">🎨 สีผม</span>' +
+            '<div class="swatch-row">' + DH.HAIR_COLORS.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.hairColor === i ? "on" : "") + '" data-hc="' + i + '" style="background:' + c + '" title="สีผม ' + (i + 1) + '"></span>'; }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cust-row">' +
+            '<span class="cust-lbl">👕 สีชุด</span>' +
+            '<div class="swatch-row">' + DH.OUTFIT_COLORS.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.outfit === i ? "on" : "") + '" data-oc="' + i + '" style="background:' + c + '" title="สีชุด ' + (i + 1) + '"></span>'; }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cust-row">' +
+            '<span class="cust-lbl">🎩 หมวก</span>' +
+            '<button type="button" class="btn-sec" id="btnHat" style="padding:6px 12px">' + DH.HATS[(charDraft.look.hat || 0) % 6] + ' ▸</button>' +
+          '</div>' +
+        '</div>' +
+        '<label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.88rem;cursor:pointer">' +
           '<input type="checkbox" id="chkTimed" ' + (charDraft.timed ? "checked" : "") + '> จับเวลาขณะทำโจทย์ (แนะนำ)' +
         '</label>' +
         '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">⚔️ ออกเดินทางผจญภัย!</button>' +
@@ -161,7 +174,7 @@
         '<img class="scene-bg" src="assets/bg/bg_town.png">' +
         '<div class="scene-scrim"></div>' +
         '<div class="actors-row" style="justify-content:center;bottom:10%">' +
-          '<div class="actor-unit anim-walk">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
+          '<div class="actor-unit anim-patrol"><div class="walk-flip">' + DH.Avatar.render(charDraft.look, charDraft.job) + '</div><div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:var(--gold)">' +

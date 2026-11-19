@@ -104,9 +104,32 @@ body {
   font: inherit;
 }
 .job-opt.on { border-color: var(--gold); background: rgba(251, 191, 36, 0.14); }
-.swatch-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
-.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #475569; cursor: pointer; }
-.swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--gold); }
+.swatch-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #475569; cursor: pointer; transition: transform 0.1s; }
+.swatch:hover { transform: scale(1.1); }
+.swatch.on { border-color: #fff; box-shadow: 0 0 0 2.5px var(--gold); }
+.cust-box {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cust-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cust-lbl {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  min-width: 68px;
+}
 
 /* Tactic Cards */
 .cards-tray { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; }

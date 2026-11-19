@@ -168,8 +168,23 @@
 
 /* Animations */
 @keyframes walkBob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-3px) rotate(3deg); }
+}
+@keyframes patrolMove {
+  0%   { transform: translate(0px, -36px) scale(0.8); }
+  18%  { transform: translate(0px, 0px) scale(1); }
+  38%  { transform: translate(105px, -4px) scale(0.98); }
+  43%  { transform: translate(105px, -4px) scale(0.98); }
+  72%  { transform: translate(-105px, -4px) scale(0.98); }
+  77%  { transform: translate(-105px, -4px) scale(0.98); }
+  95%  { transform: translate(0px, -24px) scale(0.85); }
+  100% { transform: translate(0px, -36px) scale(0.8); }
+}
+@keyframes patrolFace {
+  0%, 40%   { transform: scaleX(1); }
+  43%, 74%  { transform: scaleX(-1); }
+  77%, 100% { transform: scaleX(1); }
 }
 @keyframes monIdle {
   0%, 100% { transform: translateY(0) scaleY(1); }
@@ -208,7 +223,10 @@
   50% { opacity: 0.9; transform: scale(1.08); }
 }
 
-.anim-walk .avatar-stack { animation: walkBob 0.55s infinite; }
+.anim-walk .avatar-stack { animation: walkBob 0.42s infinite; }
+.anim-patrol { animation: patrolMove 7.5s ease-in-out infinite; }
+.anim-patrol .walk-flip { animation: patrolFace 7.5s steps(1, end) infinite; }
+.anim-patrol .avatar-stack { animation: walkBob 0.38s ease-in-out infinite; }
 .anim-atk .avatar-stack { animation: lungeRight 0.85s ease-in-out 0.15s 2; }
 .anim-hurt .avatar-stack { animation: hurtShake 0.7s ease-in-out 0.35s 2; }
 .anim-mon-idle .monster-obj { animation: monIdle 2.1s ease-in-out infinite; }
