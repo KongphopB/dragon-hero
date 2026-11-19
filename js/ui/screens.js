@@ -26,7 +26,7 @@
     var charDraft = DH.Game.getChar();
     var j = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
     ensureApp().innerHTML =
-      '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.72), rgba(19,28,49,0.96)), url(\'assets/bg/bg_town.png\') center/cover">' +
+      '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.72), rgba(19,28,49,0.96)), url(\'assets/bg/bg_plaza.png\') center/cover">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
           '<h2 style="margin:0;color:var(--gold)">🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
           '<button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' +
@@ -76,7 +76,7 @@
         '<label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.88rem;cursor:pointer">' +
           '<input type="checkbox" id="chkTimed" ' + (charDraft.timed ? "checked" : "") + '> จับเวลาขณะทำโจทย์ (แนะนำ)' +
         '</label>' +
-        '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">⚔️ ออกเดินทางผจญภัย!</button>' +
+        '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">⛲ เข้าลานน้ำพุกลางเมือง ▶</button>' +
       '</div>';
 
     document.getElementById("inpName").oninput = function (e) { charDraft.name = e.target.value; DH.Game.saveChar(); };
@@ -104,7 +104,7 @@
       charDraft.name = (document.getElementById("inpName").value || "").trim() || "นักผจญภัย";
       DH.Game.saveChar();
       DH.SFX.join();
-      DH.Game.newRun(0);
+      DH.Game.enterLobby();
     };
   }
 
@@ -121,10 +121,11 @@
 
   function monsterMiniHud(m) {
     var pct = Math.max(0, Math.min(100, 100 * m.hp / Math.max(1, m.maxHp)));
-    return '<div class="rpg-card" style="padding:10px 14px;margin-bottom:10px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
-        '<b style="color:#fef08a">' + DH.esc(m.name) + (m.isBoss ? ' (เฟส ' + m.phase + '/3)' : '') + '</b>' +
-        '<span style="font-size:0.82rem;color:var(--mute)">HP ' + m.hp + ' / ' + m.maxHp + '</span>' +
+    var bonusHp = (DH.Game.getState() || {}).bossBonusHp || 0;
+    return '<div class="mon-mini">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+        '<b style="font-size:0.95rem;color:#fef08a">' + DH.esc(m.name) + (m.isBoss ? ' (เฟส ' + m.phase + '/3)' : '') + (m.isBoss && bonusHp > 0 ? ' <span style="color:#fb923c;font-size:0.78rem">(+' + bonusHp + ' HP)</span>' : '') + '</b>' +
+        '<span style="font-size:0.8rem;color:#cbd5e1;font-weight:700">HP ' + m.hp + ' / ' + m.maxHp + '</span>' +
       '</div>' +
       '<div class="hp-track"><div class="hp-fill" style="width:' + pct + '%"></div></div>' +
     '</div>';
@@ -136,6 +137,14 @@
     var txt = document.getElementById("sTimerTxt");
     var bar = document.getElementById("sTimerBar");
     if (!g || !txt) return;
+    if (g.phase === "INTRO") {
+      if (bar) {
+        bar.style.width = (100 * (7.0 - (g.introLeft || 0)) / 7.0) + "%";
+        bar.style.background = "var(--gold)";
+      }
+      txt.textContent = "🎬 ออกเดินทาง...";
+      return;
+    }
     if (g.phase === "QUESTION") {
       if (!charDraft.timed) { txt.textContent = "⏱ ไม่จำกัดเวลา"; return; }
       if (g.frozenLeft > 0) {
@@ -169,39 +178,58 @@
     var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
     var body = "";
 
-    if (g.phase === "INTRO") {
+    if (g.phase === "LOBBY") {
       body = '<div class="scene-stage">' +
-        '<img class="scene-bg" src="assets/bg/bg_town.png">' +
+        '<img class="scene-bg" src="assets/bg/bg_plaza.png">' +
         '<div class="scene-scrim"></div>' +
         '<div class="actors-row" style="justify-content:center;bottom:10%">' +
-          '<div class="actor-unit anim-patrol"><div class="walk-flip">' + DH.Avatar.render(charDraft.look, charDraft.job) + '</div><div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
+          '<div class="actor-unit anim-patrol"><div class="walk-flip">' + DH.Avatar.render(charDraft.look, charDraft.job, { walking: true }) + '</div><div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:var(--gold)">' +
-        '<div>🌅 <b>' + DH.esc(charDraft.name) + ' (' + jb.name + ')</b> ก้าวออกจากประตูเมือง ออกเดินทางสู่รังมังกร!</div>' +
-        '<button class="btn-pri" id="btnNext" style="margin-top:10px;width:100%">ออกเดินทาง ▶</button>' +
+        '<div>⛲ <b>' + DH.esc(charDraft.name) + ' (' + jb.name + ')</b> กำลังเดินรออยู่ตรงลานน้ำพุกลางเมือง!</div>' +
+        '<div style="display:flex;gap:8px;margin-top:10px">' +
+          '<button class="btn-sec" id="btnEditChar" style="flex:0 0 auto">✏️ แก้ไขตัวละคร</button>' +
+          '<button class="btn-pri" id="btnDepart" style="flex:1">⚔️ กดเริ่มออกเดินทาง!</button>' +
+        '</div>' +
+      '</div>';
+    } else if (g.phase === "INTRO") {
+      body = '<div class="tbar"><i id="sTimerBar" style="width:0%"></i></div>' +
+      '<div class="scene-stage">' +
+        '<div class="crane-world">' +
+          '<img class="crane-bg" src="assets/bg/bg_depart_crane.png">' +
+          '<div class="crane-walker">' +
+            DH.Avatar.render(charDraft.look, charDraft.job, { walking: true, backView: true }) +
+          '</div>' +
+        '</div>' +
+        '<div class="scene-scrim"></div>' +
+      '</div>' +
+      '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:var(--gold)">' +
+        '<div>🎬 <b>' + DH.esc(charDraft.name) + ' (' + jb.name + ')</b> เดินออกจากประตูเมือง มุ่งหน้าสู่ทุ่งหญ้ากว้างใหญ่...</div>' +
+        '<button class="btn-sec" id="btnNext" style="margin-top:10px;width:100%">ข้ามคัตซีน ▶</button>' +
       '</div>';
     } else if (g.phase === "ENCOUNTER") {
       var m = g.monster;
       body = '<div class="scene-stage">' +
         '<img class="scene-bg" src="' + DH.esc(m.bg) + '" style="' + bgFilterStyle(m) + '">' +
-        '<div class="mon-hud"><div class="mon-title">' + DH.esc(m.name) + '</div><div class="mon-sub">' + DH.esc(m.subtitle) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m.hp / m.maxHp) + '%"></div></div><div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + ' · ต้องสู้ ' + m.count + ' ข้อ</div></div>' +
+        '<div class="mon-hud"><div class="mon-title">' + DH.esc(m.name) + '</div><div class="mon-sub">' + DH.esc(m.subtitle) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m.hp / m.maxHp) + '%"></div></div><div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + ' · ต้องสู้ ' + m.count + ' ข้อ' + (m.isBoss && g.bossBonusHp > 0 ? ' (เสริม +' + g.bossBonusHp + ' HP จากมอนหนี)' : '') + '</div></div>' +
         '<div class="actors-row" style="bottom:8%">' +
           '<div class="actor-unit">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           monsterObjectHtml(m, "anim-mon-idle") +
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:var(--gold)">' +
-        '<div>' + (m.isBoss ? '🔥 <b>บอสใหญ่ปรากฏตัว!</b> ' : '⚠️ <b>พบศัตรูขวางทาง!</b> ') + DH.esc(m.name) + '</div>' +
+        '<div>' + (m.isBoss ? '🔥 <b>บอสใหญ่ปรากฏตัว!</b> ' : '⚠️ <b>พบศัตรูขวางทาง!</b> ') + DH.esc(m.name) + (m.isBoss && g.bossBonusHp > 0 ? ' <span style="color:#fb923c">(ได้รับเลือดเสริมจากมอนที่หนี +' + g.bossBonusHp + ' HP!)</span>' : '') + '</div>' +
         '<button class="btn-pri" id="btnNext" style="margin-top:10px;width:100%">เข้าโจมตี ⚔️</button>' +
       '</div>';
     } else if (g.phase === "QUESTION") {
       var q = g.curQ;
-      var cardsHtml = g.cards.length ? ('<div style="font-size:0.8rem;color:var(--gold);font-weight:700;margin-top:2px">🃏 การ์ดช่วย (กดใช้ก่อนส่งคำตอบ):</div><div class="cards-tray">' +
+      var cardsHtml = g.cards.length ? ('<div style="font-size:0.82rem;color:var(--gold);font-weight:800;margin-top:2px">🃏 การ์ดกลยุทธ์ (แตะเพื่อเปิดใช้ก่อนโจมตี):</div><div class="cards-tray">' +
         g.cards.map(function (cid, idx) {
           var c = DH.CARDS[cid];
-          return '<button type="button" class="card-pill ' + (g.armedCard === cid ? "armed" : "") + '" data-cardidx="' + idx + '">' +
-            c.icon + ' <b>' + c.name + '</b><div style="font-size:0.72rem;color:var(--mute)">' + DH.esc(c.desc) + '</div>' +
+          return '<button type="button" class="card-pill card-' + cid + (g.armedCard === cid ? " armed" : "") + '" data-cardidx="' + idx + '">' +
+            '<div style="font-size:0.9rem;margin-bottom:2px">' + c.icon + ' <b>' + c.name + '</b></div>' +
+            '<div style="font-size:0.72rem;color:var(--mute);line-height:1.35">' + DH.esc(c.desc) + '</div>' +
           '</button>';
         }).join("") + '</div>') : '';
 
@@ -211,8 +239,11 @@
         (g.magnifierMsg ? '<div class="rpg-card" style="padding:8px 12px;margin-bottom:8px;border-color:#a855f7">' + DH.esc(g.magnifierMsg) + '</div>' : '') +
         (g.secondChanceMsg ? '<div class="rpg-card" style="padding:8px 12px;margin-bottom:8px;border-color:#f59e0b;color:#fde047">' + DH.esc(g.secondChanceMsg) + '</div>' : '') +
         cardsHtml +
-        '<div class="rpg-card">' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span class="rpg-badge">ข้อ ' + g.qInStage + '/' + g.monster.count + '</span><span class="rpg-badge">' + DH.esc(q.lv) + '</span><span class="rpg-badge">' + DH.esc(q.tg) + '</span></div>' +
+        '<div class="rpg-card rpg-panel-quest">' +
+          '<div class="quest-head-bar">' +
+            '<span style="font-weight:800;color:var(--gold);font-size:0.86rem">📜 ภารกิจโจมตี · ข้อ ' + g.qInStage + '/' + g.monster.count + '</span>' +
+            '<div style="display:flex;gap:5px;flex-wrap:wrap"><span class="rpg-badge" style="font-size:0.75rem;padding:2px 8px">' + DH.esc(q.lv) + '</span><span class="rpg-badge" style="font-size:0.75rem;padding:2px 8px">' + DH.esc(q.tg) + '</span></div>' +
+          '</div>' +
           '<p style="font-weight:700;margin:6px 0 10px">' + DH.esc(q.t) + '</p>' +
           '<div id="soloBoard"></div>' +
           '<button type="button" class="btn-pri" id="btnSubmit" style="width:100%;margin-top:10px">⚔️ ส่งคำตอบโจมตี!</button>' +
@@ -221,10 +252,12 @@
       var r = g.lastRes;
       var good = r.acc >= 0.999;
       var partial = r.acc >= 0.5 && !good;
+      var resTitle = good ? "⚔️ โจมตีเข้าเป้าเต็มแรง!" : (partial ? "🟡 โจมตีเฉียด! (" + Math.round(r.acc * 100) + "%)" : (r.outcome === "shielded" ? "🛡️ โล่ป้องกันการโจมตีไว้ได้!" : "💥 พลาดท่า! เตรียมรับการสวนกลับ"));
       body = '<div class="tbar"><i id="sTimerBar" style="width:100%"></i></div>' +
+        monsterMiniHud(g.monster) +
         '<div class="rpg-card" style="border-left:6px solid ' + (good ? "var(--ok)" : (partial ? "var(--warn)" : "var(--bad)")) + '">' +
           '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<b style="font-size:1.05rem">' + (r.timedOut ? "⏱ หมดเวลา · " : "") + (good ? "✅ ถูกต้องทั้งหมด!" : (partial ? "🟡 ถูกบางส่วน (" + Math.round(r.acc * 100) + "%)" : "❌ ยังไม่ถูก")) + '</b>' +
+            '<b style="font-size:1.05rem">' + (r.timedOut ? "⏱ หมดเวลา · " : "") + resTitle + '</b>' +
             '<b style="font-size:1.15rem;color:' + (r.dmg >= 0 ? "var(--ok)" : "var(--bad)") + '">' + (r.dmg >= 0 ? "+" : "") + r.dmg + ' ดาเมจ</b>' +
           '</div>' +
           (r.cardEarned ? '<div style="margin-top:6px;color:var(--gold)">🎁 Streak! ได้รับการ์ด ' + DH.CARDS[r.cardEarned].icon + ' ' + DH.CARDS[r.cardEarned].name + '</div>' : '') +
@@ -276,7 +309,7 @@
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:' + (dead ? "var(--ok)" : "var(--warn)") + '">' +
-        '<div>' + (dead ? '💥 <b>โค่น ' + DH.esc(m3.name) + ' สำเร็จ!</b> ได้รับกล่องสมบัติการ์ดช่วย +1 ใบ!' : '💨 <b>' + DH.esc(m3.name) + ' หนีไปได้!</b> มังกรบอสแกร่งขึ้น +10% HP!') + '</div>' +
+        '<div>' + (dead ? '💥 <b>โค่น ' + DH.esc(m3.name) + ' สำเร็จ!</b> ได้รับกล่องสมบัติการ์ดช่วย +1 ใบ!' : '💨 <b>' + DH.esc(m3.name) + ' หนีไปได้!</b> เลือดที่เหลือ +' + m3.hp + ' HP ถูกส่งไปเพิ่มให้มังกรบอส! (รวม +' + g.bossBonusHp + ' HP)') + '</div>' +
         '<button class="btn-pri" id="btnNext" style="margin-top:10px;width:100%">มุ่งหน้าสู่ด่านถัดไป ▶</button>' +
       '</div>';
     } else if (g.phase === "VICTORY" || g.phase === "DEFEAT") {
@@ -333,10 +366,14 @@
 
   function bindPhase(g) {
     var el;
-    if (g.phase === "INTRO" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.enterEncounter;
+    if (g.phase === "LOBBY") {
+      document.getElementById("btnEditChar").onclick = DH.Game.resetToCreate;
+      document.getElementById("btnDepart").onclick = function () { DH.Game.newRun(0); };
+    } else if (g.phase === "INTRO" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.enterEncounter;
     else if (g.phase === "ENCOUNTER" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.startQuestion;
     else if (g.phase === "QUESTION") {
       boardCtrl = global.FBD.mount(document.getElementById("soloBoard"), g.curQ, {
+        biome: g.monster && g.monster.id,
         initialState: Object.keys(g.draftPlace).length ? g.draftPlace : undefined,
         onChange: function (st) { g.draftPlace = st; }
       });
@@ -349,6 +386,7 @@
       };
     } else if (g.phase === "REVEAL") {
       global.FBD.mount(document.getElementById("soloRevBoard"), g.lastRes.q, {
+        biome: g.monster && g.monster.id,
         readOnly: true,
         initialState: g.lastRes.place,
         revealData: { revealMode: "key" }

@@ -24,9 +24,8 @@
   function initStage(idx) {
     var st = DH.STAGES[idx];
     var maxHp = Math.round(st.count * st.baseDmg * st.hpFactor);
-    if (st.isBoss && g.bossBonusPct > 0) maxHp = Math.round(maxHp * (1 + g.bossBonusPct));
+    if (st.isBoss && g.bossBonusHp > 0) maxHp += g.bossBonusHp;
     var hp = maxHp;
-    if (st.isBoss && g.overkillBonus > 0) hp = Math.max(Math.round(maxHp * 0.25), maxHp - g.overkillBonus);
     g.monster = {
       id: st.monsterId,
       name: st.name,
@@ -64,6 +63,22 @@
     return q;
   }
 
+  function enterLobby() {
+    stopTimer();
+    g = {
+      phase: "LOBBY",
+      stageIdx: 0,
+      qInStage: 0,
+      qGlobal: 0,
+      score: 0,
+      streak: 0,
+      hearts: 3,
+      maxHearts: 3,
+      cards: []
+    };
+    onRender();
+  }
+
   function newRun(startStageIdx) {
     stopTimer();
     startStageIdx = startStageIdx || 0;
@@ -85,8 +100,7 @@
       topicStats: {},
       accSum: 0,
       qTotal: 0,
-      bossBonusPct: 0,
-      overkillBonus: 0,
+      bossBonusHp: 0,
       knightShieldUsed: false,
       monster: null,
       curQ: null,
@@ -105,8 +119,22 @@
       defeatFate: Math.random() < 0.5 ? "burn" : "eat"
     };
     initStage(startStageIdx);
-    if (startStageIdx > 0) enterEncounter();
-    else { g.phase = "INTRO"; onRender(); }
+    if (startStageIdx > 0) {
+      enterEncounter();
+    } else {
+      g.phase = "INTRO";
+      g.introLeft = 7.0;
+      onRender();
+      tmr = setInterval(function () {
+        if (!g || g.phase !== "INTRO") { stopTimer(); return; }
+        g.introLeft = Math.max(0, g.introLeft - 0.1);
+        onTick();
+        if (g.introLeft <= 0) {
+          stopTimer();
+          enterEncounter();
+        }
+      }, 100);
+    }
   }
 
   function enterEncounter() {
@@ -268,8 +296,6 @@
     var m = g.monster;
     if (m.hp <= 0) {
       if (m.isBoss) { g.phase = "VICTORY"; DH.SFX.win(); onRender(); return; }
-      var remQ = Math.max(0, m.count - g.qInStage);
-      if (remQ > 0) g.overkillBonus += remQ * Math.round(m.baseDmg * 0.35);
       if (g.cards.length < 3) g.cards.push(DH.ALL_CARDS[Math.floor(Math.random() * DH.ALL_CARDS.length)]);
       if (charDraft.job === "mage" && g.cards.length < 3) g.cards.push(DH.ALL_CARDS[Math.floor(Math.random() * DH.ALL_CARDS.length)]);
       g.phase = "MON_DEFEAT";
@@ -278,7 +304,7 @@
     }
     if (g.qInStage >= m.count) {
       if (m.isBoss) { g.phase = "DEFEAT"; DH.SFX.lose(); onRender(); return; }
-      g.bossBonusPct += 0.10;
+      g.bossBonusHp += m.hp;
       g.phase = "MON_ESCAPE";
       onRender();
       return;
@@ -302,6 +328,7 @@
     saveChar: saveChar,
     getState: function () { return g; },
     setCallbacks: function (renderCb, tickCb) { onRender = renderCb; onTick = tickCb; },
+    enterLobby: enterLobby,
     newRun: newRun,
     enterEncounter: enterEncounter,
     startQuestion: startQuestion,

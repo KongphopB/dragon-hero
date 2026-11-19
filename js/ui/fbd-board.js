@@ -1,6 +1,56 @@
 // Unified FBD & Force Decomposition (cos/sin) Drag-and-Drop Board
 (function (global) {
   var T = global.DH.FORCES;
+  var svgSeq = 0;
+
+  var BIOMES = {
+    slime: {
+      id: "slime",
+      skyTop: "#0f2942", skyMid: "#194366", skyBot: "#1e5159",
+      hillFar: "#143d2b", hillNear: "#1a5233",
+      turfTop: "#22c55e", turfHi: "#4ade80", soilDark: "#452712", soilMid: "#6b4423",
+      speck: "#855830", wallFill: "#5b3b22", wallLine: "#7c5130", wallHi: "#4ade80",
+      tuftKind: "grass", skyFx: "cloud"
+    },
+    goblin: {
+      id: "goblin",
+      skyTop: "#241333", skyMid: "#4f2238", skyBot: "#74342b",
+      hillFar: "#241e2e", hillNear: "#2c2920",
+      turfTop: "#65a30d", turfHi: "#a3e635", soilDark: "#382213", soilMid: "#573720",
+      speck: "#784c2c", wallFill: "#4a3222", wallLine: "#6b4831", wallHi: "#84cc16",
+      tuftKind: "grass", skyFx: "pine"
+    },
+    fenrir: {
+      id: "fenrir",
+      skyTop: "#091324", skyMid: "#10283d", skyBot: "#133b44",
+      hillFar: "#0b222e", hillNear: "#112f38",
+      turfTop: "#0d9488", turfHi: "#2dd4bf", soilDark: "#16242f", soilMid: "#1e3340",
+      speck: "#334e5e", wallFill: "#1e2e3d", wallLine: "#2d4459", wallHi: "#2dd4bf",
+      tuftKind: "shroom", skyFx: "spore"
+    },
+    orc: {
+      id: "orc",
+      skyTop: "#1a0f14", skyMid: "#36181f", skyBot: "#4b241d",
+      hillFar: "#23171b", hillNear: "#2f2224",
+      turfTop: "#64748b", turfHi: "#94a3b8", soilDark: "#1e242e", soilMid: "#333c4a",
+      speck: "#475569", wallFill: "#2b303a", wallLine: "#475061", wallHi: "#94a3b8",
+      tuftKind: "crag", skyFx: "ash"
+    },
+    dragon: {
+      id: "dragon",
+      skyTop: "#17070b", skyMid: "#3d0f13", skyBot: "#6b1b15",
+      hillFar: "#240d11", hillNear: "#331416",
+      turfTop: "#44403c", turfHi: "#f97316", soilDark: "#1c1917", soilMid: "#292524",
+      speck: "#ea580c", wallFill: "#292120", wallLine: "#572619", wallHi: "#fb923c",
+      tuftKind: "lava", skyFx: "ember"
+    }
+  };
+  var STAGE_TO_BIOME = ["slime", "goblin", "fenrir", "orc", "dragon"];
+
+  function resolveBiome(q, opts) {
+    var key = (opts && opts.biome) || STAGE_TO_BIOME[((q && q.stage) || 1) - 1] || "slime";
+    return BIOMES[key] || BIOMES.slime;
+  }
 
   function pt(a, r, o) {
     o = o || [180, 135];
@@ -173,39 +223,161 @@
     return s;
   }
 
-  function ropesSvg(q) {
+  function renderBackdropSvg(tm, uid, isCustom) {
+    if (isCustom) return "";
+    var skyId = "dh_sky_" + uid;
+    var defs = '<defs><linearGradient id="' + skyId + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + tm.skyTop + '"/>' +
+      '<stop offset="55%" stop-color="' + tm.skyMid + '"/>' +
+      '<stop offset="100%" stop-color="' + tm.skyBot + '"/>' +
+      '</linearGradient></defs>';
+    var hills = '<path d="M0,210 Q60,168 125,195 T245,180 T360,198 L360,270 L0,270 Z" fill="' + tm.hillFar + '" opacity="0.85"/>' +
+      '<path d="M0,232 Q90,192 175,220 T360,210 L360,270 L0,270 Z" fill="' + tm.hillNear + '" opacity="0.9"/>';
+    var fx = "";
+    if (tm.skyFx === "cloud") {
+      fx = '<g fill="#e2e8f0" opacity="0.1">' +
+        '<rect x="28" y="34" width="38" height="10" rx="5"/><rect x="38" y="28" width="20" height="8" rx="4"/>' +
+        '<rect x="275" y="44" width="44" height="10" rx="5"/><rect x="286" y="38" width="22" height="8" rx="4"/></g>';
+    } else if (tm.skyFx === "pine") {
+      fx = '<g fill="#1c1524" opacity="0.65">' +
+        '<polygon points="26,225 40,175 54,225"/><polygon points="310,222 326,168 342,222"/><polygon points="285,228 298,186 311,228"/></g>';
+    } else if (tm.skyFx === "spore") {
+      fx = '<g fill="#2dd4bf" opacity="0.55">' +
+        '<circle cx="42" cy="64" r="2"/><circle cx="76" cy="112" r="1.5"/><circle cx="318" cy="72" r="2"/>' +
+        '<circle cx="290" cy="138" r="1.5" fill="#c084fc"/><circle cx="52" cy="154" r="1.8" fill="#c084fc"/></g>';
+    } else if (tm.skyFx === "ash") {
+      fx = '<g fill="#94a3b8" opacity="0.35">' +
+        '<polygon points="18,225 45,165 72,225" fill="#23191d" opacity="0.8"/>' +
+        '<polygon points="292,225 322,160 350,225" fill="#23191d" opacity="0.8"/>' +
+        '<rect x="64" y="70" width="3" height="3"/><rect x="304" y="88" width="3" height="3"/></g>';
+    } else if (tm.skyFx === "ember") {
+      fx = '<g fill="#fb923c" opacity="0.65">' +
+        '<polygon points="14,225 48,158 84,225" fill="#240b0e" opacity="0.85"/>' +
+        '<polygon points="280,225 316,154 352,225" fill="#240b0e" opacity="0.85"/>' +
+        '<circle cx="46" cy="96" r="2"/><circle cx="312" cy="82" r="2.2"/><circle cx="62" cy="148" r="1.5" fill="#fde047"/></g>';
+    }
+    // Subtle dark scrim preserves high readability for dashed compass circle & force vectors
+    return defs + '<rect x="0" y="0" width="360" height="270" fill="url(#' + skyId + ')"/>' +
+      hills + fx + '<rect x="0" y="0" width="360" height="270" fill="#0b1220" opacity="0.28"/>';
+  }
+
+  function renderSurfaceSvg(x, y, w, h, tm, iceMode, skipZone) {
+    var s = '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + tm.soilMid + '"/>' +
+      '<rect x="' + x + '" y="' + (y + 22) + '" width="' + w + '" height="' + Math.max(0, h - 22) + '" fill="' + tm.soilDark + '" opacity="0.72"/>';
+    if (iceMode) {
+      s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="11" fill="#0284c7" opacity="0.85"/>' +
+        '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="4" fill="#bae6fd"/>';
+    } else {
+      s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="10" fill="' + tm.turfTop + '"/>' +
+        '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="3" fill="' + tm.turfHi + '"/>';
+    }
+    var tufts = "";
+    for (var tx = x + 16; tx < x + w - 12; tx += 28) {
+      if (skipZone && tx > skipZone[0] && tx < skipZone[1]) continue;
+      if (!iceMode) {
+        if (tm.tuftKind === "grass") {
+          tufts += '<path d="M' + tx + ',' + y + ' l-3,-6 l3,4 l2,-7 l2,7 l3,-4 l-2,6 Z" fill="' + tm.turfHi + '"/>';
+        } else if (tm.tuftKind === "shroom") {
+          tufts += '<rect x="' + (tx - 1) + '" y="' + (y - 4) + '" width="2" height="4" fill="#cbd5e1"/>' +
+            '<path d="M' + (tx - 4) + ',' + (y - 4) + ' Q' + tx + ',' + (y - 10) + ' ' + (tx + 4) + ',' + (y - 4) + ' Z" fill="' + tm.turfHi + '"/>';
+        } else if (tm.tuftKind === "lava") {
+          tufts += '<path d="M' + (tx - 5) + ',' + (y + 12) + ' l4,6 l5,-3" fill="none" stroke="#fb923c" stroke-width="1.6" opacity="0.85"/>';
+        } else {
+          tufts += '<polygon points="' + (tx - 3) + ',' + y + ' ' + tx + ',' + (y - 5) + ' ' + (tx + 3) + ',' + y + '" fill="' + tm.turfHi + '" opacity="0.8"/>';
+        }
+      }
+      s += '<rect x="' + (tx + 6) + '" y="' + (y + 16 + ((tx % 3) * 7)) + '" width="5" height="3" rx="1" fill="' + tm.speck + '" opacity="0.7"/>';
+    }
+    s += tufts + '<line x1="' + x + '" y1="' + y + '" x2="' + (x + w) + '" y2="' + y + '" stroke="#f8fafc" stroke-width="2.5" opacity="0.92"/>';
+    return s;
+  }
+
+  function renderWallSvg(x, y, w, h, tm, edgeX) {
+    var s = '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + tm.wallFill + '"/>';
+    for (var wy = y + 18; wy < y + h; wy += 20) {
+      s += '<line x1="' + x + '" y1="' + wy + '" x2="' + (x + w) + '" y2="' + wy + '" stroke="' + tm.wallLine + '" stroke-width="1.5"/>';
+    }
+    s += '<rect x="' + (edgeX === x ? x : edgeX - 5) + '" y="' + y + '" width="5" height="' + h + '" fill="' + tm.wallHi + '" opacity="0.35"/>' +
+      '<line x1="' + edgeX + '" y1="' + y + '" x2="' + edgeX + '" y2="' + (y + h) + '" stroke="#e2e8f0" stroke-width="3.5"/>';
+    return s;
+  }
+
+  function boxObjSvg(x, y, w, h, isKey) {
+    var body = isKey ? "#14532d" : "#854d27";
+    var inner = isKey ? "#166534" : "#a16232";
+    var plank = isKey ? "#052e16" : "#5c3317";
+    var trim = isKey ? "#4ade80" : "#cbd5e1";
+    return '<g>' +
+      '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="5" fill="' + body + '" stroke="#f8fafc" stroke-width="2.5"/>' +
+      '<rect x="' + (x + 6) + '" y="' + (y + 6) + '" width="' + (w - 12) + '" height="' + (h - 12) + '" rx="2" fill="' + inner + '" stroke="' + plank + '" stroke-width="2"/>' +
+      '<line x1="' + (x + 8) + '" y1="' + (y + 8) + '" x2="' + (x + w - 8) + '" y2="' + (y + h - 8) + '" stroke="' + plank + '" stroke-width="3" opacity="0.65"/>' +
+      '<line x1="' + (x + 6) + '" y1="' + (y + h / 2) + '" x2="' + (x + w - 6) + '" y2="' + (y + h / 2) + '" stroke="' + plank + '" stroke-width="2" opacity="0.6"/>' +
+      '<circle cx="' + (x + 10) + '" cy="' + (y + 10) + '" r="2.2" fill="' + trim + '"/>' +
+      '<circle cx="' + (x + w - 10) + '" cy="' + (y + 10) + '" r="2.2" fill="' + trim + '"/>' +
+      '<circle cx="' + (x + 10) + '" cy="' + (y + h - 10) + '" r="2.2" fill="' + trim + '"/>' +
+      '<circle cx="' + (x + w - 10) + '" cy="' + (y + h - 10) + '" r="2.2" fill="' + trim + '"/>' +
+      '</g>';
+  }
+
+  function orbObjSvg(cx, cy, r, isKey, dimmed, label) {
+    var fill = dimmed ? "#0f172a" : (isKey ? "#14532d" : "#334155");
+    var hi = dimmed ? "#1e293b" : (isKey ? "#22c55e" : "#64748b");
+    var lbl = label
+      ? '<text x="' + (cx - r * 0.55) + '" y="' + (cy - r * 0.4) + '" font-size="13" font-weight="800" fill="#f8fafc" style="paint-order:stroke;stroke:#0f172a;stroke-width:3px">' + label + '</text>'
+      : '';
+    return '<g>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + fill + '" stroke="#f8fafc" stroke-width="2.5"/>' +
+      '<circle cx="' + (cx - r * 0.28) + '" cy="' + (cy - r * 0.28) + '" r="' + (r * 0.36) + '" fill="' + hi + '" opacity="0.45"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r - 5) + '" fill="none" stroke="' + hi + '" stroke-width="1.2" opacity="0.45" stroke-dasharray="6 4"/>' +
+      lbl + '</g>';
+  }
+
+  function ropesSvg(q, tm) {
     var s = "";
     (q.rp || []).forEach(function (a, k) {
       var e = pt(a, 120), m = pt(a, 140);
-      s += '<line x1="180" y1="135" x2="' + e[0] + '" y2="' + e[1] + '" stroke="#d97706" stroke-width="5" stroke-linecap="round"/>';
+      s += '<line x1="180" y1="135" x2="' + e[0] + '" y2="' + e[1] + '" stroke="#451a03" stroke-width="6.5" stroke-linecap="round"/>' +
+        '<line x1="180" y1="135" x2="' + e[0] + '" y2="' + e[1] + '" stroke="#f59e0b" stroke-width="3.6" stroke-linecap="round"/>' +
+        '<line x1="180" y1="135" x2="' + e[0] + '" y2="' + e[1] + '" stroke="#92400e" stroke-width="2" stroke-dasharray="4 4"/>';
       s += q.dot
-        ? '<circle cx="' + e[0] + '" cy="' + e[1] + '" r="7" fill="#e2e8f0"/>'
-        : '<g transform="translate(' + e[0] + ' ' + e[1] + ') rotate(' + (-a) + ')"><rect x="0" y="-46" width="54" height="92" fill="#92400e" opacity=".35"/><line x1="0" y1="-46" x2="0" y2="46" stroke="#e2e8f0" stroke-width="4"/></g>';
-      if (q.two) s += '<text x="' + m[0] + '" y="' + (m[1] + 4) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#fde68a">เชือก ' + (k + 1) + '</text>';
+        ? '<circle cx="' + e[0] + '" cy="' + e[1] + '" r="7" fill="#cbd5e1" stroke="#0f172a" stroke-width="2"/>'
+        : '<g transform="translate(' + e[0] + ' ' + e[1] + ') rotate(' + (-a) + ')">' +
+            '<rect x="0" y="-44" width="54" height="88" fill="' + tm.wallFill + '"/>' +
+            '<line x1="0" y1="-22" x2="54" y2="-22" stroke="' + tm.wallLine + '" stroke-width="1.5"/>' +
+            '<line x1="0" y1="22" x2="54" y2="22" stroke="' + tm.wallLine + '" stroke-width="1.5"/>' +
+            '<line x1="0" y1="-44" x2="0" y2="44" stroke="#e2e8f0" stroke-width="3.5"/>' +
+            '<circle cx="0" cy="0" r="5.5" fill="#94a3b8" stroke="#0f172a" stroke-width="2"/>' +
+          '</g>';
+      if (q.two) s += '<text x="' + m[0] + '" y="' + (m[1] + 4) + '" text-anchor="middle" font-size="12" font-weight="800" fill="#fde68a" style="paint-order:stroke;stroke:#0f172a;stroke-width:4px">เชือก ' + (k + 1) + '</text>';
     });
     return s;
   }
 
-  function geo(q) {
-    var b = {}, s = "", s2 = "", r = 36, ink = 'stroke="#e2e8f0" stroke-width="3"', br = 'fill="#92400e" opacity=".4"';
-    var wall = function (x0, fy) { return '<rect x="' + x0 + '" y="' + (fy - 190) + '" width="46" height="190" ' + br + '/>'; };
+  function geo(q, tm) {
+    tm = tm || resolveBiome(q);
+    var b = {}, s = "", s2 = "", r = 36;
     if (q.k === "ws") {
       var ox = 40, oy = 250, th = (q.ia || 30) * Math.PI / 180, c = Math.cos(th), n = Math.sin(th), bx, by;
       if (q.wl === "v") { bx = r; by = r * (1 + n) / c; } else { bx = r * (c - n); by = r * (n + c); }
       var lo = [ox + bx, oy - by], up = [ox + bx + 2 * r * c, oy - by - 2 * r * n];
       b = q.sw ? { A: lo, B: up } : { A: up, B: lo };
-      s = '<g transform="translate(' + ox + ' ' + oy + ') rotate(-' + (q.ia || 30) + ')"><rect x="0" y="0" width="400" height="140" fill="#38bdf8" opacity=".28"/><line x1="0" y1="0" x2="400" y2="0" ' + ink + '/>' +
-        (q.wl === "p" ? '<rect x="-46" y="-230" width="46" height="230" ' + br + '/><line x1="0" y1="-230" x2="0" y2="0" stroke="#e2e8f0" stroke-width="4"/>' : '') + '</g>';
-      if (q.wl === "v") s += '<rect x="' + (ox - 46) + '" y="' + (oy - 230) + '" width="46" height="230" ' + br + '/><line x1="' + ox + '" y1="' + (oy - 230) + '" x2="' + ox + '" y2="' + oy + '" stroke="#e2e8f0" stroke-width="4"/>';
+      s = '<g transform="translate(' + ox + ' ' + oy + ') rotate(-' + (q.ia || 30) + ')">' +
+        renderSurfaceSvg(0, 0, 400, 140, tm, false) +
+        (q.wl === "p" ? renderWallSvg(-46, -230, 46, 230, tm, 0) : '') + '</g>';
+      if (q.wl === "v") s += renderWallSvg(ox - 46, oy - 230, 46, 230, tm, ox);
     } else if (q.k === "b2") {
       r = 40; var fy = 250; b = { A: [110, fy - 40], B: [158, fy - 104] };
-      s = '<line x1="24" y1="' + fy + '" x2="244" y2="' + fy + '" ' + ink + '/>' + wall(24, fy) + wall(198, fy) +
-        '<line x1="70" y1="' + (fy - 190) + '" x2="70" y2="' + fy + '" ' + ink + '/><line x1="198" y1="' + (fy - 190) + '" x2="198" y2="' + fy + '" ' + ink + '/>';
+      s = renderSurfaceSvg(24, fy, 220, 90, tm, false) +
+        renderWallSvg(24, fy - 190, 46, 190, tm, 70) +
+        renderWallSvg(198, fy - 190, 46, 190, tm, 198);
     } else {
       var fy = 250; b = { A: [157.5, fy - 79], B: [100, fy - 36], C: [215, fy - 36] };
-      s = '<line x1="14" y1="' + fy + '" x2="300" y2="' + fy + '" ' + ink + '/>';
-      if (q.wlb) s += wall(18, fy) + wall(251, fy) + '<line x1="64" y1="' + (fy - 190) + '" x2="64" y2="' + fy + '" ' + ink + '/><line x1="251" y1="' + (fy - 190) + '" x2="251" y2="' + fy + '" ' + ink + '/>';
-      if (q.rope) s2 = '<line x1="100" y1="' + (fy - 36) + '" x2="215" y1="' + (fy - 36) + '" stroke="#d97706" stroke-width="4"/>';
+      s = renderSurfaceSvg(14, fy, 286, 90, tm, false);
+      if (q.wlb) {
+        s += renderWallSvg(18, fy - 190, 46, 190, tm, 64) +
+          renderWallSvg(251, fy - 190, 46, 190, tm, 251);
+      }
+      if (q.rope) s2 = '<line x1="100" y1="' + (fy - 36) + '" x2="215" y1="' + (fy - 36) + '" stroke="#f59e0b" stroke-width="4.5" stroke-linecap="round"/>';
     }
     return { b: b, s: s, s2: s2, r: r };
   }
@@ -239,17 +411,19 @@
 
     var multi = isMulti(q);
     var tol = q.tol || (multi ? 15 : 12);
-    var boxFill = showReveal && revealMode === "key" ? "#14532d" : "#1e293b";
+    var isKey = showReveal && revealMode === "key";
+    var tm = resolveBiome(q, opts);
+    var iceMode = !!(q && q.t && String(q.t).indexOf("น้ำแข็ง") >= 0);
+    var backdrop = renderBackdropSvg(tm, ++svgSeq, q.k === "custom" && q.imgUrl);
     var bgSvg = "";
 
     if (multi) {
-      var g = geo(q), ks = Object.keys(g.b), c = cen(g, view);
+      var g = geo(q, tm), ks = Object.keys(g.b), c = cen(g, view);
       bgSvg = '<g transform="translate(' + (180 - c[0]) + ' ' + (135 - c[1]) + ')">' + g.s;
       ks.forEach(function (k) {
         var p = g.b[k];
-        var bf = (view === "all" || view === k) ? boxFill : "#0f172a";
-        bgSvg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + g.r + '" fill="' + bf + '" stroke="#e2e8f0" stroke-width="3"/>' +
-          '<text x="' + (p[0] - g.r * 0.55) + '" y="' + (p[1] - g.r * 0.4) + '" font-size="13" font-weight="800" fill="#f8fafc">' + k + '</text>';
+        var activeObj = (view === "all" || view === k);
+        bgSvg += orbObjSvg(p[0], p[1], g.r, isKey, !activeObj, k);
       });
       bgSvg += g.s2 + '</g>' + (view === "all" ? "" : '<circle cx="180" cy="135" r="4" fill="#f8fafc"/>');
     } else if (q.k === "custom" && q.imgUrl) {
@@ -257,23 +431,20 @@
         '<circle cx="180" cy="135" r="5" fill="#fbbf24" stroke="#0f172a" stroke-width="2"/>';
     } else if (q.k === "inc") {
       var ia = q.ia || 30;
-      bgSvg = ropesSvg(q) + '<g transform="rotate(-' + ia + ' 180 135)">' +
-        '<rect x="-120" y="175" width="600" height="90" fill="#38bdf8" opacity=".25"/>' +
-        '<line x1="-120" y1="175" x2="480" y2="175" stroke="#e2e8f0" stroke-width="3"/>' +
-        (q.dot
-          ? '<circle cx="180" cy="135" r="40" fill="' + boxFill + '" stroke="#e2e8f0" stroke-width="3"/>'
-          : '<rect x="140" y="95" width="80" height="80" rx="4" fill="' + boxFill + '" stroke="#e2e8f0" stroke-width="3"/>') +
-        '</g><text x="292" y="255" font-size="13" font-weight="700" fill="#7dd3fc">θ = ' + ia + '°</text>' +
-        appliedArrows(q) + '<circle cx="180" cy="135" r="4" fill="#f8fafc"/>';
+      bgSvg = ropesSvg(q, tm) + '<g transform="rotate(-' + ia + ' 180 135)">' +
+        renderSurfaceSvg(-120, 175, 600, 110, tm, iceMode, q.dot ? null : [132, 228]) +
+        (q.dot ? orbObjSvg(180, 135, 40, isKey, false, "") : boxObjSvg(140, 95, 80, 80, isKey)) +
+        '</g><rect x="282" y="238" width="66" height="22" rx="6" fill="rgba(15,23,42,0.85)" stroke="#38bdf8" stroke-width="1"/>' +
+        '<text x="315" y="253" text-anchor="middle" font-size="12" font-weight="800" fill="#7dd3fc">θ = ' + ia + '°</text>' +
+        appliedArrows(q) + '<circle cx="180" cy="135" r="4" fill="#f8fafc" stroke="#0f172a" stroke-width="1.5"/>';
     } else if (q.k === "flat") {
-      bgSvg = '<rect x="-20" y="175" width="400" height="90" fill="#38bdf8" opacity=".22"/>' +
-        '<line x1="-20" y1="175" x2="380" y2="175" stroke="#e2e8f0" stroke-width="3"/>' +
-        '<rect x="140" y="95" width="80" height="80" rx="4" fill="' + boxFill + '" stroke="#e2e8f0" stroke-width="3"/>' +
-        appliedArrows(q) + '<circle cx="180" cy="135" r="4" fill="#f8fafc"/>';
+      bgSvg = renderSurfaceSvg(-20, 175, 400, 100, tm, iceMode, [132, 228]) +
+        boxObjSvg(140, 95, 80, 80, isKey) +
+        appliedArrows(q) + '<circle cx="180" cy="135" r="4" fill="#f8fafc" stroke="#0f172a" stroke-width="1.5"/>';
     } else {
-      bgSvg = ropesSvg(q) +
-        '<rect x="140" y="95" width="80" height="80" rx="4" fill="' + boxFill + '" stroke="#e2e8f0" stroke-width="3"/>' +
-        appliedArrows(q) + '<circle cx="180" cy="135" r="4" fill="#f8fafc"/>';
+      bgSvg = ropesSvg(q, tm) +
+        boxObjSvg(140, 95, 80, 80, isKey) +
+        appliedArrows(q) + '<circle cx="180" cy="135" r="4" fill="#f8fafc" stroke="#0f172a" stroke-width="1.5"/>';
     }
 
     var axesSvg = "";
@@ -356,7 +527,7 @@
         '<text x="50" y="24" text-anchor="middle" font-size="12" font-weight="800" fill="#fbbf24">มุม ' + opts.liveAngle + '°</text>'
       : '';
 
-    return '<svg viewBox="0 0 360 270" class="fbd-svg">' + bgSvg + guides + axesSvg + ovlRoom + '<g class="fbd-lay">' + lay + '</g>' + marks + badge + liveBadge + '</svg>';
+    return '<svg viewBox="0 0 360 270" class="fbd-svg">' + backdrop + bgSvg + guides + axesSvg + ovlRoom + '<g class="fbd-lay">' + lay + '</g>' + marks + badge + liveBadge + '</svg>';
   }
 
   function mount(container, q, opts) {
@@ -496,6 +667,7 @@
 
       var pl = currentPl();
       html += '<div class="fbd-board">' + renderSceneSvg(q, {
+        biome: opts.biome,
         view: curView,
         pl: pl,
         pls: state,
