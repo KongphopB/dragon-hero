@@ -1,0 +1,120 @@
+[
+  {
+    "id": "default_dragon_quest",
+    "name": "Dragon Hero: สมดุลกลและแตกแรง (มาตรฐาน)",
+    "description": "ผจญภัย 5 ด่าน ตั้งแต่สไลม์จนถึงมังกรเพลิง ครอบคลุม FBD พื้นราบ พื้นเอียง หลายวัตถุ แตกแรง และสมการสมดุล",
+    "settings": {
+      "cards": true,
+      "hideWrongNames": true,
+      "revealSeconds": 10,
+      "revealAuto": true,
+      "bossK": 0.65,
+      "stageK": 0.6,
+      "sfx": true
+    },
+    "stages": [
+      {
+        "stage": 1,
+        "monsterId": "slime",
+        "name": "ราชาสไลม์ (King Slime)",
+        "subtitle": "ทุ่งหญ้าริมหมู่บ้าน · พื้นราบและเชือกพื้นฐาน",
+        "img": "/assets/slime.png",
+        "mode": "sync",
+        "count": 2,
+        "baseDmg": 100,
+        "qIds": [
+          "s1_flat_rest",
+          "s1_hang_1",
+          "s1_flat_pull_smooth",
+          "s1_flat_push_left",
+          "s1_hang_wall_push",
+          "s1_hang_2_horiz",
+          "s1_flat_pull_right_f",
+          "s1_hang_2_sym"
+        ]
+      },
+      {
+        "stage": 2,
+        "monsterId": "goblin",
+        "name": "ราชาก๊อบลิน (Goblin King)",
+        "subtitle": "ป่าสนยามอัสดง · เชือก 2 เส้นและพื้นเอียงเบื้องต้น",
+        "img": "/assets/gob.png",
+        "mode": "sync",
+        "count": 2,
+        "baseDmg": 120,
+        "qIds": [
+          "s2_rope_60_30",
+          "s2_rope_37_53",
+          "s2_rope_vert_wall",
+          "s2_flat_angled_pull",
+          "s2_flat_angled_push",
+          "s2_inc_30_smooth_rope",
+          "s2_inc_37_friction_rest",
+          "s2_inc_45_rope_15"
+        ]
+      },
+      {
+        "stage": 3,
+        "monsterId": "fenrir",
+        "name": "หมาป่าเฟนริล (Fenrir)",
+        "subtitle": "ป่าเห็ดเรืองแสง · พื้นเอียงฝืดและหลายวัตถุ",
+        "img": "/assets/fen.png",
+        "mode": "sync",
+        "count": 2,
+        "baseDmg": 140,
+        "qIds": [
+          "s3_inc_30_horiz_push",
+          "s3_inc_53_pull_down",
+          "s3_inc_37_pull_up_f",
+          "s3_ws_30_vert",
+          "s3_ws_30_perp",
+          "s3_ws_37_sw"
+        ]
+      },
+      {
+        "stage": 4,
+        "monsterId": "orc",
+        "name": "จอมทัพออร์ค (Orc Warlord)",
+        "subtitle": "ทุ่งกระดูกเถ้าถ่าน · แตกแรง sin/cos และระบบท่อ",
+        "img": "/assets/orc.png",
+        "mode": "sync",
+        "count": 2,
+        "baseDmg": 160,
+        "qIds": [
+          "s4_dec_inc_30_w",
+          "s4_dec_inc_37_all",
+          "s4_dec_rope_60_30",
+          "s4_dec_pull_37",
+          "s4_dec_inc_horiz_f",
+          "s4_b2_spheres",
+          "s4_b3_cyl_rope",
+          "s4_b3_cyl_box"
+        ]
+      },
+      {
+        "stage": 5,
+        "monsterId": "dragon",
+        "name": "มังกรเพลิงบรรพกาล (Boss)",
+        "subtitle": "หน้าผาปากถ้ำมังกร · บททดสอบสมดุลกลขั้นสูงสุด",
+        "img": "/assets/dragon1.png",
+        "phaseImgs": [
+          "/assets/dragon1.png",
+          "/assets/dragon2.png",
+          "/assets/dragon3.png"
+        ],
+        "mode": "sync",
+        "count": 3,
+        "baseDmg": 200,
+        "isBoss": true,
+        "qIds": [
+          "s5_boss_dec_rope_vert",
+          "s5_boss_eq_incline_push",
+          "s5_boss_eq_pull_30",
+          "s5_boss_inc_pull_53_f",
+          "s5_boss_fbd_inc_rope_vert",
+          "s5_boss_eq_2ropes_37_53"
+        ]
+      }
+    ]
+  }
+]

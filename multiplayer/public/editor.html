@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ออกแบบโจทย์ &amp; จัดด่าน — Dragon Hero</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    .ed-shell { max-width: 1200px; margin: 0 auto; padding: 14px; }
+    .ed-grid { display: grid; grid-template-columns: 360px 1fr; gap: 14px; align-items: start; }
+    .q-item {
+      padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2);
+      margin-bottom: 8px; cursor: pointer;
+    }
+    .q-item.on { border-color: var(--gold); background: rgba(251,191,36,0.12); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    label.lbl { display: block; font-size: 0.8rem; color: var(--mute); margin-bottom: 3px; }
+    input.inp, select.inp, textarea.inp {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+      background: var(--panel2); color: var(--ink); font: inherit;
+    }
+    @media (max-width: 860px) { .ed-grid, .form-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="ed-shell">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <h1 style="margin:0;color:var(--gold)">📜 คลังโจทย์ &amp; ห้องออกแบบด่าน (ครู)</h1>
+        <span style="color:var(--mute);font-size:0.9rem">ออกแบบโจทย์ FBD / แตกแรงด้วยตนเองโดยลากแรงตั้งเฉลย หรือจัดโหมดสุ่ม/โจทย์เดียวกันของแต่ละมอนสเตอร์</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sec" id="tabQuestions">📝 ออกแบบโจทย์ (<span id="qCountBadge">0</span>)</button>
+        <button class="btn-sec" id="tabQuests">🗺️ จัดด่าน &amp; โหมดมอนสเตอร์</button>
+        <a href="/host" class="btn-pri">🏰 ไปหน้าเปิดห้องเกม</a>
+      </div>
+    </div>
+    <div id="edMain">กำลังโหลด...</div>
+  </div>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/fbd-board.js"></script>
+  <script>
+    var questions = [];
+    var quests = [];
+    var modeTab = "questions"; // "questions" | "quests"
+    var selQ = null;
+    var keyBoardCtrl = null;
+    var testBoardCtrl = null;
+    var filterText = "";
+    var filterStage = "all";
+
+    function api(url, method, body) {
+      return fetch(url, {
+        method: method || "GET",
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined
+      }).then(function (r) { return r.json(); });
+    }
+
+    function loadAll() {
+      Promise.all([api("/api/questions"), api("/api/quests")]).then(function (res) {
+        questions = res[0] || [];
+        quests = res[1] || [];
+        document.getElementById("qCountBadge").textContent = questions.length;
+        if (!selQ && questions.length) selQ = JSON.parse(JSON.stringify(questions[0]));
+        render();
+      });
+    }
+
+    document.getElementById("tabQuestions").onclick = function () { modeTab = "questions"; render(); };
+    document.getElementById("tabQuests").onclick = function () { modeTab = "quests"; render(); };
+
+    function newBlankQuestion() {
+      return {
+        id: "",
+        stage: 2,
+        type: "B",
+        lv: "กลาง",
+        topic: "incline",
+        tg: "พื้นเอียง 30°",
+        st: "สมดุล",
+        k: "inc",
+        ia: 30,
+        rp: [],
+        fa: [],
+        bt: ["W", "N", "T", "f", "F"],
+        t: "กล่องมวล 5 kg วางบนพื้นเอียง 30° ...",
+        ex: [["W", 270], ["N", 120], ["f", 30]],
+        why: "W ชี้ลงตรง 270°, N ตั้งฉากพื้นเอียง 120°, แรงเสียดทาน f ชี้ขึ้นเนิน 30°",
+        tm: 25,
+        tol: 6
+      };
+    }
+
+    function render() {
+      if (modeTab === "quests") { renderQuestEditor(); return; }
+      var filtered = questions.filter(function (q) {
+        var m1 = filterStage === "all" || String(q.stage) === filterStage;
+        var m2 = !filterText || (q.t + " " + q.tg + " " + q.id).toLowerCase().indexOf(filterText.toLowerCase()) >= 0;
+        return m1 && m2;
+      });
+
+      var left = '<div class="rpg-card">' +
+        '<div style="display:flex;gap:6px;margin-bottom:8px">' +
+          '<button class="btn-pri" id="btnNewQ" style="flex:1">+ สร้างโจทย์ใหม่</button>' +
+          '<button class="btn-sec" id="btnExportAll">ส่งออก JSON</button>' +
+        '</div>' +
+        '<input class="inp" id="inpFilter" placeholder="🔍 ค้นหาโจทย์..." value="' + DH.esc(filterText) + '" style="margin-bottom:6px">' +
+        '<select class="inp" id="selFilterStage" style="margin-bottom:10px">' +
+          '<option value="all">ทุกด่าน (' + questions.length + ' ข้อ)</option>' +
+          '<option value="1" ' + (filterStage === "1" ? "selected" : "") + '>ด่าน 1 (สไลม์)</option>' +
+          '<option value="2" ' + (filterStage === "2" ? "selected" : "") + '>ด่าน 2 (ก๊อบลิน)</option>' +
+          '<option value="3" ' + (filterStage === "3" ? "selected" : "") + '>ด่าน 3 (เฟนริล)</option>' +
+          '<option value="4" ' + (filterStage === "4" ? "selected" : "") + '>ด่าน 4 (ออร์ค)</option>' +
+          '<option value="5" ' + (filterStage === "5" ? "selected" : "") + '>ด่าน 5 (มังกรบอส)</option>' +
+        '</select>' +
+        '<div style="max-height:65vh;overflow-y:auto">' +
+          filtered.map(function (q) {
+            var active = selQ && selQ.id === q.id;
+            return '<div class="q-item ' + (active ? "on" : "") + '" data-qid="' + DH.esc(q.id) + '">' +
+              '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--accent)"><span>ด่าน ' + q.stage + ' · แบบ ' + q.type + ' · ' + DH.esc(q.lv) + '</span><span>' + q.tm + ' วิ</span></div>' +
+              '<div style="font-size:0.86rem;font-weight:700;margin-top:2px">' + DH.esc(q.t.slice(0, 68)) + (q.t.length > 68 ? "..." : "") + '</div>' +
+            '</div>';
+          }).join("") +
+        '</div>' +
+      '</div>';
+
+      var q = selQ || newBlankQuestion();
+      var right = '<div class="rpg-card">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+          '<h2 style="margin:0;color:var(--gold)">' + (q.id ? "แก้ไขโจทย์: " + DH.esc(q.id) : "สร้างโจทย์ใหม่") + '</h2>' +
+          '<div style="display:flex;gap:8px">' +
+            (q.id ? '<button class="btn-sec" id="btnTestPlay">🎮 ทดลองเล่น</button>' : '') +
+            (q.id ? '<button class="btn-sec" id="btnDelQ" style="border-color:#ef4444;color:#fca5a5">ลบ</button>' : '') +
+            '<button class="btn-pri" id="btnSaveQ">💾 บันทึกโจทย์</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div><label class="lbl">ประเภทโจทย์</label><select class="inp" id="fType">' +
+            '<option value="A" ' + (q.type === "A" ? "selected" : "") + '>A: วางแรง FBD พื้นฐาน</option>' +
+            '<option value="B" ' + (q.type === "B" ? "selected" : "") + '>B: พื้นเอียง / แรงเสียดทาน</option>' +
+            '<option value="C" ' + (q.type === "C" ? "selected" : "") + '>C: หลายวัตถุ (A, B)</option>' +
+            '<option value="D" ' + (q.type === "D" ? "selected" : "") + '>D: แตกแรง (sin / cos)</option>' +
+            '<option value="E" ' + (q.type === "E" ? "selected" : "") + '>E: สมการสมดุล (ΣFx=0, ΣFy=0)</option>' +
+          '</select></div>' +
+          '<div><label class="lbl">ด่านแนะนำ</label><select class="inp" id="fStage">' +
+            [1,2,3,4,5].map(function (n) { return '<option value="' + n + '" ' + (q.stage == n ? "selected" : "") + '>ด่าน ' + n + '</option>'; }).join("") +
+          '</select></div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div><label class="lbl">รูปแบบฉาก</label><select class="inp" id="fK">' +
+            '<option value="flat" ' + (q.k === "flat" ? "selected" : "") + '>พื้นราบ</option>' +
+            '<option value="r" ' + (q.k === "r" ? "selected" : "") + '>แขวนเชือก</option>' +
+            '<option value="inc" ' + (q.k === "inc" ? "selected" : "") + '>พื้นเอียง</option>' +
+            '<option value="ws" ' + (q.k === "ws" ? "selected" : "") + '>ทรงกลม 2 ลูกบนพื้นเอียง</option>' +
+            '<option value="b2" ' + (q.k === "b2" ? "selected" : "") + '>ทรงกลม 2 ลูกในกล่อง</option>' +
+            '<option value="b3" ' + (q.k === "b3" ? "selected" : "") + '>ท่อ 3 ท่อน</option>' +
+            '<option value="custom" ' + (q.k === "custom" ? "selected" : "") + '>อัปโหลดรูปภาพเอง</option>' +
+          '</select></div>' +
+          '<div><label class="lbl">ความยาก / เวลา (วิ) / ±องศา</label>' +
+            '<div style="display:flex;gap:6px">' +
+              '<select class="inp" id="fLv"><option ' + (q.lv === "ง่าย" ? "selected" : "") + '>ง่าย</option><option ' + (q.lv === "กลาง" ? "selected" : "") + '>กลาง</option><option ' + (q.lv === "ยาก" ? "selected" : "") + '>ยาก</option></select>' +
+              '<input class="inp" id="fTm" type="number" value="' + (q.tm || 25) + '" title="เวลา (วินาที)">' +
+              '<input class="inp" id="fTol" type="number" value="' + (q.tol || 6) + '" title="ความคลาดเคลื่อนองศาที่ยอมรับ">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div><label class="lbl">มุมพื้นเอียง (ถ้ามี) / มุมเชือก (คั่นด้วย ,)</label>' +
+            '<div style="display:flex;gap:6px">' +
+              '<input class="inp" id="fIa" type="number" placeholder="มุมเอียง เช่น 30" value="' + (q.ia || "") + '">' +
+              '<input class="inp" id="fRp" placeholder="มุมเชือก เช่น 60,150" value="' + ((q.rp || []).join(",")) + '">' +
+            '</div></div>' +
+          '<div><label class="lbl">อัปโหลดรูปฉากเอง (กรณีเลือกอัปโหลดรูป)</label>' +
+            '<input class="inp" type="file" id="fImgUpload" accept="image/*">' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div><label class="lbl">แท็กสั้น</label><input class="inp" id="fTg" value="' + DH.esc(q.tg || "") + '"></div>' +
+          '<div><label class="lbl">สถานะ</label><input class="inp" id="fSt" value="' + DH.esc(q.st || "สมดุล") + '"></div>' +
+        '</div>' +
+        '<label class="lbl">โจทย์คำถาม</label><textarea class="inp" id="fT" rows="2" style="margin-bottom:8px">' + DH.esc(q.t || "") + '</textarea>' +
+        (q.type === "D" || q.type === "E"
+          ? '<label class="lbl">ตัวเลือกชิปองค์ประกอบ (คั่นด้วยลูกน้ำ ,)</label><input class="inp" id="fChips" value="' + DH.esc((q.chips || []).join(", ")) + '" style="margin-bottom:8px">'
+          : '<label class="lbl">ปุ่มแรงที่ให้เด็กเลือก (คั่นด้วย , เช่น W,N,T,f,F)</label><input class="inp" id="fBt" value="' + DH.esc((q.bt || []).join(",")) + '" style="margin-bottom:8px">') +
+        '<div style="background:#0b1120;border:2px solid var(--gold);border-radius:12px;padding:10px;margin:8px 0">' +
+          '<div style="font-weight:800;color:var(--gold);margin-bottom:6px">🎯 ตั้งเฉลยโดยลาก/วางบนกระดานนี้เลย</div>' +
+          '<div id="edKeyBoard"></div>' +
+        '</div>' +
+        '<label class="lbl">คำอธิบายเฉลย (จะแสดงให้นักเรียนอ่านหลังหมดเวลา)</label><textarea class="inp" id="fWhy" rows="3">' + DH.esc(q.why || "") + '</textarea>' +
+        '<div id="edTestZone" style="margin-top:12px"></div>' +
+      '</div>';
+
+      document.getElementById("edMain").innerHTML = '<div class="ed-grid">' + left + right + '</div>';
+      bindQuestionEditor(q);
+    }
+
+    function exToBoardState(q) {
+      if (q.type === "D") return { axisMode: q.axisMode || "xy", slots: JSON.parse(JSON.stringify(q.exComp || {})) };
+      if (q.type === "E") return { eq: JSON.parse(JSON.stringify(q.exEq || { ax1Pos: [], ax1Neg: [], ax2Pos: [], ax2Neg: [] })) };
+      var st = { all: {}, A: {}, B: {} };
+      if (Array.isArray(q.ex)) {
+        q.ex.forEach(function (pair) { st.all[pair[0]] = pair[1]; });
+      } else if (q.ex) {
+        ["all", "A", "B"].forEach(function (v) {
+          (q.ex[v] || []).forEach(function (pair) { st[v][pair[0]] = pair[1]; });
+        });
+      }
+      return st;
+    }
+
+    function applyBoardStateToQ(q, st) {
+      if (q.type === "D") {
+        q.axisMode = st.axisMode || "xy";
+        q.exComp = st.slots || {};
+      } else if (q.type === "E") {
+        q.exEq = st.eq || {};
+      } else if (q.k === "ws" || String(q.k || "")[0] === "b") {
+        q.ex = {};
+        ["all", "A", "B"].forEach(function (v) {
+          q.ex[v] = Object.keys(st[v] || {}).map(function (k) { return [k, st[v][k]]; });
+        });
+      } else {
+        q.ex = Object.keys(st.all || {}).map(function (k) { return [k, st.all[k]]; });
+      }
+    }
+
+    function bindQuestionEditor(q) {
+      document.getElementById("inpFilter").oninput = function (e) { filterText = e.target.value; render(); };
+      document.getElementById("selFilterStage").onchange = function (e) { filterStage = e.target.value; render(); };
+      document.querySelectorAll(".q-item[data-qid]").forEach(function (el) {
+        el.onclick = function () {
+          var found = questions.find(function (x) { return x.id === el.dataset.qid; });
+          if (found) { selQ = JSON.parse(JSON.stringify(found)); render(); }
+        };
+      });
+      document.getElementById("btnNewQ").onclick = function () { selQ = newBlankQuestion(); render(); };
+      document.getElementById("btnExportAll").onclick = function () {
+        var blob = new Blob([JSON.stringify({ questions: questions, quests: quests }, null, 2)], { type: "application/json" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "dragon_hero_pack.json";
+        a.click();
+      };
+
+      function syncFieldsFromDom() {
+        q.type = document.getElementById("fType").value;
+        q.stage = +document.getElementById("fStage").value;
+        q.k = document.getElementById("fK").value;
+        q.lv = document.getElementById("fLv").value;
+        q.tm = +document.getElementById("fTm").value || 25;
+        q.tol = +document.getElementById("fTol").value || 6;
+        var iaVal = document.getElementById("fIa").value.trim();
+        q.ia = iaVal ? +iaVal : undefined;
+        var rpVal = document.getElementById("fRp").value.trim();
+        q.rp = rpVal ? rpVal.split(",").map(function (x) { return +x.trim(); }).filter(function (n) { return !isNaN(n); }) : [];
+        q.two = q.rp.length >= 2 ? 1 : 0;
+        q.tg = document.getElementById("fTg").value;
+        q.st = document.getElementById("fSt").value;
+        q.t = document.getElementById("fT").value;
+        q.why = document.getElementById("fWhy").value;
+        var btEl = document.getElementById("fBt");
+        if (btEl) q.bt = btEl.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+        var chEl = document.getElementById("fChips");
+        if (chEl) q.chips = chEl.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+        selQ = q;
+      }
+
+      ["fType", "fK", "fIa", "fRp", "fBt", "fChips"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.onchange = function () { syncFieldsFromDom(); render(); };
+      });
+
+      var imgUp = document.getElementById("fImgUpload");
+      if (imgUp) {
+        imgUp.onchange = function (e) {
+          var file = e.target.files[0];
+          if (!file) return;
+          var rd = new FileReader();
+          rd.onload = function () {
+            api("/api/upload-image", "POST", { dataUrl: rd.result }).then(function (res) {
+              if (res.url) { q.k = "custom"; q.imgUrl = res.url; selQ = q; render(); }
+            });
+          };
+          rd.readAsDataURL(file);
+        };
+      }
+
+      keyBoardCtrl = FBD.mount(document.getElementById("edKeyBoard"), q, {
+        initialState: exToBoardState(q),
+        onChange: function (st) { applyBoardStateToQ(q, st); }
+      });
+
+      document.getElementById("btnSaveQ").onclick = function () {
+        syncFieldsFromDom();
+        if (keyBoardCtrl) applyBoardStateToQ(q, keyBoardCtrl.getState());
+        api("/api/questions", "POST", q).then(function (res) {
+          if (res.ok) {
+            selQ = res.question;
+            alert("บันทึกโจทย์เรียบร้อย!");
+            loadAll();
+          }
+        });
+      };
+
+      var delBtn = document.getElementById("btnDelQ");
+      if (delBtn) {
+        delBtn.onclick = function () {
+          if (!confirm("ลบโจทย์ข้อนี้?")) return;
+          api("/api/questions/delete", "POST", { id: q.id }).then(function () {
+            selQ = null;
+            loadAll();
+          });
+        };
+      }
+
+      var testBtn = document.getElementById("btnTestPlay");
+      if (testBtn) {
+        testBtn.onclick = function () {
+          syncFieldsFromDom();
+          var tz = document.getElementById("edTestZone");
+          tz.innerHTML = '<div class="rpg-card" style="border-color:var(--accent)">' +
+            '<h3 style="margin:0 0 8px;color:var(--accent)">🎮 ทดลองทำโจทย์</h3>' +
+            '<div id="edTestBoard"></div>' +
+            '<button class="btn-blue" id="btnCheckTest" style="margin-top:8px">ตรวจคำตอบ</button>' +
+            '<div id="edTestResult" style="margin-top:8px"></div>' +
+          '</div>';
+          testBoardCtrl = FBD.mount(document.getElementById("edTestBoard"), q, {});
+          document.getElementById("btnCheckTest").onclick = function () {
+            api("/api/grade-preview", "POST", { question: q, place: testBoardCtrl.getState() }).then(function (res) {
+              document.getElementById("edTestResult").innerHTML =
+                '<b>ผลตรวจ: ' + Math.round(res.acc * 100) + '% (' + res.outcome + ')</b>' +
+                (res.codes.length ? ' · รหัสความผิด: <span style="color:#fca5a5">' + res.codes.join(", ") + '</span>' : '') +
+                '<div style="font-size:0.86rem;margin-top:4px">' + res.rows.map(function (r) { return (r.status === "ok" ? "✓ " : "✗ ") + (r.force || r.header) + " " + (r.msg || ""); }).join("<br>") + '</div>';
+            });
+          };
+        };
+      }
+    }
+
+    function renderQuestEditor() {
+      var quest = quests[0];
+      if (!quest) return;
+      var html = '<div class="rpg-card">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+          '<h2 style="margin:0;color:var(--gold)">🗺️ จัดการชุดด่าน: ' + DH.esc(quest.name) + '</h2>' +
+          '<button class="btn-pri" id="btnSaveQuest">💾 บันทึกชุดด่าน</button>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div><label class="lbl">เวลาดูเฉลยอัตโนมัติ (วินาที)</label><input class="inp" id="qsRevSec" type="number" value="' + (quest.settings.revealSeconds || 10) + '"></div>' +
+          '<div><label class="lbl">ความโหดมังกร (bossK: 0.5 ง่าย · 0.65 ปกติ · 0.8 โหด)</label><input class="inp" id="qsBossK" type="number" step="0.05" value="' + (quest.settings.bossK || 0.65) + '"></div>' +
+        '</div>' +
+        quest.stages.map(function (st, idx) {
+          return '<div class="rpg-card" style="background:var(--panel2);margin-top:10px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+              '<b>ด่าน ' + st.stage + ': ' + DH.esc(st.name) + '</b>' +
+              '<div style="display:flex;gap:8px;align-items:center">' +
+                '<label style="font-size:0.8rem">โหมด: <select class="inp" data-st-mode="' + idx + '" style="width:auto;display:inline">' +
+                  '<option value="sync" ' + (st.mode === "sync" ? "selected" : "") + '>โจทย์เดียวกัน (Sync)</option>' +
+                  '<option value="random" ' + (st.mode === "random" ? "selected" : "") + '>สุ่มโจทย์ (Random)</option>' +
+                '</select></label>' +
+                '<label style="font-size:0.8rem">จำนวนข้อ: <input class="inp" type="number" data-st-cnt="' + idx + '" value="' + st.count + '" style="width:70px;display:inline"></label>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">' +
+              questions.map(function (q) {
+                var checked = (st.qIds || []).indexOf(q.id) >= 0;
+                return '<label style="font-size:0.78rem;background:#0f172a;padding:4px 8px;border-radius:8px;border:1px solid ' + (checked ? "var(--gold)" : "var(--line)") + ';cursor:pointer">' +
+                  '<input type="checkbox" data-st-q="' + idx + '" value="' + DH.esc(q.id) + '" ' + (checked ? "checked" : "") + '> [ด่าน' + q.stage + '/' + q.type + '] ' + DH.esc(q.t.slice(0, 26)) + '...</label>';
+              }).join("") +
+            '</div>' +
+          '</div>';
+        }).join("") +
+      '</div>';
+
+      document.getElementById("edMain").innerHTML = html;
+      document.getElementById("btnSaveQuest").onclick = function () {
+        quest.settings.revealSeconds = +document.getElementById("qsRevSec").value || 10;
+        quest.settings.bossK = +document.getElementById("qsBossK").value || 0.65;
+        quest.stages.forEach(function (st, idx) {
+          st.mode = document.querySelector('[data-st-mode="' + idx + '"]').value;
+          st.count = Math.max(1, +document.querySelector('[data-st-cnt="' + idx + '"]').value || 2);
+          st.qIds = Array.from(document.querySelectorAll('[data-st-q="' + idx + '"]:checked')).map(function (c) { return c.value; });
+        });
+        api("/api/quests", "POST", quest).then(function (res) {
+          if (res.ok) alert("บันทึกชุดด่านเรียบร้อย!");
+        });
+      };
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>

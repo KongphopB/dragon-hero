@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Host (ครู) — Dragon Hero: FBD Quest</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/theme.css">
+  <style>
+    .host-shell { max-width: 1180px; margin: 0 auto; padding: 14px; }
+    .topbar {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 10px; padding: 10px 14px; background: var(--panel); border: 2px solid var(--line);
+      border-radius: 14px; margin-bottom: 12px;
+    }
+    .pin-pill {
+      font-size: 1.5rem; font-weight: 900; letter-spacing: 3px; color: var(--gold);
+      background: #0f172a; padding: 4px 14px; border-radius: 10px; border: 2px solid var(--gold);
+    }
+    .ctrl-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .ctrl-btn {
+      font: inherit; font-weight: 700; font-size: 0.85rem; padding: 7px 11px;
+      border-radius: 9px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer;
+    }
+    .ctrl-btn:hover { border-color: var(--accent); }
+    .ctrl-btn.warn { border-color: var(--gold); color: #fde047; }
+    .ctrl-btn.danger { border-color: #ef4444; color: #fca5a5; }
+    .lobby-grid { display: grid; grid-template-columns: 340px 1fr; gap: 14px; }
+    .roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 10px; max-height: 58vh; overflow-y: auto; }
+    .roster-card {
+      background: var(--panel2); border: 2px solid var(--line); border-radius: 12px; padding: 8px;
+      text-align: center; position: relative;
+    }
+    .roster-card .hero-svg { width: 64px; height: 64px; margin: 0 auto; display: block; }
+    .kick-btn {
+      position: absolute; top: 4px; right: 4px; background: rgba(239,68,68,0.2); border: 0;
+      color: #fca5a5; border-radius: 6px; cursor: pointer; font-size: 0.75rem; padding: 2px 6px;
+    }
+    .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 14px; align-items: start; }
+    .stat-bar-row { margin-bottom: 8px; }
+    .stat-bar-track { height: 12px; background: #0f172a; border-radius: 99px; overflow: hidden; display: flex; }
+    @media (max-width: 860px) { .lobby-grid, .two-col { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="host-shell" id="app">กำลังโหลด...</div>
+  <script src="/js/shared.js"></script>
+  <script src="/js/sfx.js"></script>
+  <script src="/js/qr.js"></script>
+  <script src="/js/fbd-board.js"></script>
+  <script>
+    var app = document.getElementById("app");
+    var state = null;
+    var quests = [];
+    var serverInfo = { ip: location.hostname, port: location.port || "80" };
+    var clockOffset = 0; // serverNow - Date.now()
+    var lastPhase = null;
+    var lastVersion = 0;
+    var lastPlayerCount = 0;
+    var es = null;
+
+    function api(url, method, body) {
+      return fetch(url, {
+        method: method || "GET",
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined
+      }).then(function (r) { return r.json(); });
+    }
+
+    function postRoom(action, body) {
+      if (!state) return Promise.resolve();
+      return api("/api/room/" + state.pin + "/" + action, "POST", body || {});
+    }
+
+    function init() {
+      Promise.all([api("/api/quests"), api("/api/server-info")]).then(function (res) {
+        quests = res[0] || [];
+        serverInfo = res[1] || serverInfo;
+        var urlPin = new URLSearchParams(location.search).get("pin") || sessionStorage.getItem("dh_host_pin");
+        if (urlPin) {
+          connectRoom(urlPin);
+        } else {
+          renderCreateScreen();
+        }
+      });
+    }
+
+    function renderCreateScreen() {
+      var opts = quests.map(function (q, idx) {
+        return '<option value="' + DH.esc(q.id) + '">' + DH.esc(q.name) + ' (' + q.stages.length + ' ด่าน)</option>';
+      }).join("");
+      app.innerHTML =
+        '<div class="rpg-card" style="max-width:640px;margin:40px auto;text-align:center">' +
+        '<div style="font-size:3rem">🏰</div>' +
+        '<h1 style="margin:6px 0;color:var(--gold)">เปิดห้องผจญภัย Dragon Hero</h1>' +
+        '<p style="color:var(--mute)">เลือกชุดด่านและโจทย์สำหรับห้องเรียนนี้ (แก้ไขหรือเพิ่มโจทย์ได้ที่ <a href="/editor" style="color:var(--accent);text-decoration:underline">หน้าออกแบบโจทย์</a>)</p>' +
+        '<select id="questSel" style="width:100%;padding:12px;border-radius:10px;background:var(--panel2);color:var(--ink);border:2px solid var(--line);font:inherit;margin:12px 0">' + opts + '</select>' +
+        '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
+        '<a href="/" class="btn-sec">‹ กลับหน้าแรก</a>' +
+        '<button class="btn-pri" id="createBtn">สร้างห้อง &amp; รับรหัส PIN ▶</button>' +
+        '</div></div>';
+      document.getElementById("createBtn").onclick = function () {
+        var qid = document.getElementById("questSel").value;
+        api("/api/room/create", "POST", { questId: qid }).then(function (res) {
+          if (res.pin) {
+            sessionStorage.setItem("dh_host_pin", res.pin);
+            history.replaceState(null, "", "/host?pin=" + res.pin);
+            connectRoom(res.pin);
+          }
+        });
+      };
+    }
+
+    function connectRoom(pin) {
+      if (es) es.close();
+      api("/api/room/" + pin + "/state?role=host").then(function (s) {
+        if (s.error) {
+          sessionStorage.removeItem("dh_host_pin");
+          renderCreateScreen();
+          return;
+        }
+        onNewState(s);
+        es = new EventSource("/api/room/" + pin + "/stream?role=host");
+        es.onmessage = function (ev) {
+          try { onNewState(JSON.parse(ev.data)); } catch (e) {}
+        };
+      });
+    }
+
+    function onNewState(s) {
+      clockOffset = s.serverNow - Date.now();
+      var phaseChanged = s.phase !== lastPhase;
+      if (s.phase === "LOBBY" && s.playerCount > lastPlayerCount) SFX.join();
+      lastPlayerCount = s.playerCount;
+      if (phaseChanged) {
+        if (s.phase === "ENCOUNTER" && s.monster && s.monster.isBoss) SFX.roar();
+        if (s.phase === "BATTLE") {
+          var anyOk = (s.battleActors || []).some(function (a) { return a.outcome === "correct"; });
+          if (anyOk) SFX.hit(); else SFX.hurt();
+        }
+        if (s.phase === "VICTORY") SFX.win();
+        if (s.phase === "DEFEAT") SFX.lose();
+      }
+      lastPhase = s.phase;
+      state = s;
+      SFX.setEnabled(s.settings && s.settings.sfx !== false);
+      render();
+    }
+
+    function remMs() {
+      if (!state || !state.phaseEndsAt) return 0;
+      if (state.paused || state.holdExplain) return 0;
+      return Math.max(0, state.phaseEndsAt - (Date.now() + clockOffset));
+    }
+
+    setInterval(function () {
+      var el = document.getElementById("liveTimer");
+      var bar = document.getElementById("liveTimerBar");
+      if (!state || !el) return;
+      if (state.holdExplain) {
+        el.textContent = "⏸ ค้างไว้อธิบาย";
+        if (bar) bar.style.width = "100%";
+        return;
+      }
+      if (state.paused) {
+        el.textContent = "⏸ หยุดชั่วคราว";
+        return;
+      }
+      var r = remMs();
+      el.textContent = state.phaseEndsAt ? ("⏱ " + Math.ceil(r / 1000) + " วิ") : "";
+      if (bar && state.phaseEndsAt > state.phaseStartedAt) {
+        var pct = Math.max(0, Math.min(100, 100 * r / (state.phaseEndsAt - state.phaseStartedAt)));
+        bar.style.width = pct + "%";
+        bar.style.background = r <= 3000 ? "var(--bad)" : "var(--ok)";
+      }
+    }, 150);
+
+    function topbarHtml() {
+      var s = state;
+      var hideNames = !!(s.settings && s.settings.hideWrongNames);
+      var sfxOn = !(s.settings && s.settings.sfx === false);
+      return '<div class="topbar">' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<span class="pin-pill">PIN: ' + s.pin + '</span>' +
+          '<span class="rpg-badge">👥 ' + s.playerCount + ' คน</span>' +
+          (s.phase !== "LOBBY" ? '<span class="rpg-badge">ด่าน ' + (s.stageIdx + 1) + '/' + s.stageTotal + ' · ข้อ ' + s.qInStage + '</span>' : '') +
+          '<span id="liveTimer" style="font-weight:800;color:var(--gold);min-width:95px"></span>' +
+        '</div>' +
+        '<div class="ctrl-group">' +
+          (s.phase !== "LOBBY" ? '<button class="ctrl-btn" id="btnPause">' + (s.paused ? "▶ เล่นต่อ" : "⏸ พัก") + '</button>' : '') +
+          (s.phase === "QUESTION" ? '<button class="ctrl-btn" id="btnPlus15">➕15 วิ</button>' : '') +
+          (s.phase !== "LOBBY" && s.phase !== "FINAL_BOARD" && s.phase !== "MISTAKE_REPORT" ? '<button class="ctrl-btn warn" id="btnNext">ถัดไป ▶</button>' : '') +
+          '<button class="ctrl-btn" id="btnHideNames">' + (hideNames ? "🙈 ซ่อนชื่อคนผิด: เปิด" : "👁️ ซ่อนชื่อคนผิด: ปิด") + '</button>' +
+          '<button class="ctrl-btn" id="btnSfx">' + (sfxOn ? "🔊 เสียง" : "🔇 ปิดเสียง") + '</button>' +
+          (s.phase !== "LOBBY" && s.phase !== "FINAL_BOARD" && s.phase !== "MISTAKE_REPORT" ? '<button class="ctrl-btn danger" id="btnEnd">🏁 จบเกม</button>' : '') +
+          '<button class="ctrl-btn" id="btnNewRoom">ห้องใหม่</button>' +
+        '</div></div>';
+    }
+
+    function bindTopbar() {
+      var b;
+      if ((b = document.getElementById("btnPause"))) b.onclick = function () { postRoom("pause"); };
+      if ((b = document.getElementById("btnPlus15"))) b.onclick = function () { postRoom("add-time", { seconds: 15 }); };
+      if ((b = document.getElementById("btnNext"))) b.onclick = function () { postRoom("next"); };
+      if ((b = document.getElementById("btnHideNames"))) b.onclick = function () {
+        postRoom("settings", { hideWrongNames: !(state.settings && state.settings.hideWrongNames) });
+      };
+      if ((b = document.getElementById("btnSfx"))) b.onclick = function () {
+        postRoom("settings", { sfx: !(state.settings && state.settings.sfx !== false) });
+      };
+      if ((b = document.getElementById("btnEnd"))) b.onclick = function () {
+        if (confirm("จบเกมทันทีและไปหน้าสรุปคะแนน?")) postRoom("end-early");
+      };
+      if ((b = document.getElementById("btnNewRoom"))) b.onclick = function () {
+        if (confirm("ออกจากห้องนี้เพื่อสร้างห้องใหม่?")) {
+          sessionStorage.removeItem("dh_host_pin");
+          location.href = "/host";
+        }
+      };
+    }
+
+    function renderActorUnit(actor, animClass, showDmg) {
+      var job = DH.JOBS[actor.job] || DH.JOBS.warrior;
+      var pop = "";
+      if (showDmg) {
+        if (actor.outcome === "correct" || actor.outcome === "partial") {
+          pop = '<div class="actor-dmg ok">+' + actor.dmg + ' ⚔️</div>';
+        } else if (actor.outcome === "shielded") {
+          pop = '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>';
+        } else {
+          pop = '<div class="actor-dmg bad">💥 โดนตี!</div>';
+        }
+      }
+      return '<div class="actor-unit ' + (animClass || "") + '">' +
+        pop +
+        DH.heroAvatarSvg(actor.look, actor.job, { masked: actor.masked }) +
+        '<div class="actor-tag ' + (actor.masked ? "masked" : "") + '">' +
+        (actor.masked ? "🥷 " : job.icon + " ") + DH.esc(actor.name) +
+        '</div></div>';
+    }
+
+    function renderMonsterHud(m) {
+      var pct = Math.max(0, Math.min(100, 100 * m.hp / Math.max(1, m.maxHp)));
+      return '<div class="mon-hud">' +
+        '<div class="mon-title">' + DH.esc(m.name) + (m.isBoss ? ' · เฟส ' + (m.phase || 1) + '/3' : '') + '</div>' +
+        '<div class="mon-sub">' + DH.esc(m.subtitle || "") + '</div>' +
+        '<div class="hp-track"><div class="hp-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + '</div>' +
+        '</div>';
+    }
+
+    function render() {
+      var s = state;
+      var body = "";
+
+      if (s.phase === "LOBBY") {
+        var joinUrl = "http://" + serverInfo.ip + ":" + serverInfo.port + "/play?pin=" + s.pin;
+        var qrSvg = QRGen.toSvg(joinUrl, 190);
+        var curMode = (s.monster && s.monster.mode) || "sync";
+        body = '<div class="lobby-grid">' +
+          '<div class="rpg-card" style="text-align:center">' +
+            '<h2 style="margin:0 0 6px;color:var(--gold)">สแกนเพื่อเข้าร่วม</h2>' +
+            '<div style="display:inline-block;padding:10px;background:#fff;border-radius:14px;margin:8px 0">' + qrSvg + '</div>' +
+            '<div style="font-size:0.86rem;word-break:break-all;color:var(--accent);font-weight:700">' + DH.esc(joinUrl) + '</div>' +
+            '<div style="margin-top:12px;text-align:left;background:var(--panel2);padding:10px;border-radius:10px;font-size:0.85rem">' +
+              '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="chkCards" ' + (s.settings.cards ? "checked" : "") + '> เปิดใช้การ์ดช่วย (Tactic Cards)</label>' +
+              '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="chkRevAuto" ' + (s.settings.revealAuto !== false ? "checked" : "") + '> เฉลยไปต่ออัตโนมัติใน 10 วิ</label>' +
+              '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px"><span>โหมดโจทย์ด่าน 1:</span>' +
+                '<select id="selStageMode" style="background:#0f172a;color:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 8px">' +
+                  '<option value="sync" ' + (curMode === "sync" ? "selected" : "") + '>โจทย์เดียวกันทั้งห้อง</option>' +
+                  '<option value="random" ' + (curMode === "random" ? "selected" : "") + '>สุ่มโจทย์ไม่ซ้ำกัน</option>' +
+                '</select></div>' +
+            '</div>' +
+            '<div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">' +
+              '<button class="btn-pri" id="btnStartGame" ' + (s.playerCount < 1 ? "disabled" : "") + '>⚔️ เริ่มออกเดินทาง! (' + s.playerCount + ' คน)</button>' +
+              '<button class="btn-sec" id="btnAddBots">🧪 เพิ่มบอททดสอบ 5 คน</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.55), rgba(19,28,49,0.94)), url(/assets/town.png) center/cover">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+              '<h2 style="margin:0">🏕️ ค่ายรวมพลหน้าประตูเมือง</h2>' +
+              '<span class="rpg-badge">รอผู้กล้าเข้าร่วม...</span>' +
+            '</div>' +
+            '<div class="roster-grid">' +
+              (s.roster.length ? s.roster.map(function (p) {
+                var job = DH.JOBS[p.job] || DH.JOBS.warrior;
+                return '<div class="roster-card">' +
+                  '<button class="kick-btn" data-kick="' + p.uid + '" title="เตะออก">✕</button>' +
+                  DH.heroAvatarSvg(p.look, p.job) +
+                  '<div style="font-weight:800;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + DH.esc(p.name) + '</div>' +
+                  '<div style="font-size:0.75rem;color:var(--accent)">' + job.icon + ' ' + job.name + (p.isBot ? " (บอท)" : "") + '</div>' +
+                '</div>';
+              }).join("") : '<div style="grid-column:1/-1;text-align:center;padding:60px 10px;color:#e2e8f0;font-weight:700">ยังไม่มีนักเรียนเข้าห้อง · ให้นักเรียนสแกน QR หรือเข้า /play แล้วกรอก PIN: ' + s.pin + '</div>') +
+            '</div>' +
+          '</div></div>';
+      } else if (s.phase === "INTRO") {
+        body = '<div class="scene-stage wide">' +
+          '<img class="scene-bg" src="/assets/town.png" alt="Village Gate">' +
+          '<div class="scene-scrim"></div>' +
+          '<div class="actors-row" style="justify-content:center;bottom:14%">' +
+            '<div class="party-cluster">' + s.cutsceneCast.map(function (a) { return renderActorUnit(a, "anim-walk", false); }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cutscene-caption">🌅 <b>ออกเดินทางสู่รังมอนสเตอร์!</b> ตัวแทนผู้กล้าทั้ง 5 (สุ่มจากห้องเรียน) กำลังก้าวออกจากประตูเมืองมุ่งหน้าสู่อันตราย...</div>' +
+          '</div>';
+      } else if (s.phase === "ENCOUNTER") {
+        var m = s.monster;
+        body = '<div class="scene-stage wide">' +
+          '<img class="scene-bg" src="' + DH.esc(m.img) + '" alt="Monster">' +
+          renderMonsterHud(m) +
+          '<div class="cutscene-caption">' + (m.isBoss ? '🔥 <b>บอสใหญ่ปรากฏตัว!</b> ' : '⚠️ <b>พบศัตรูขวางทาง!</b> ') + DH.esc(m.name) + ' — เตรียมตัวเขียน FBD โจมตีในอีกสักครู่!</div>' +
+          '</div>';
+      } else if (s.phase === "QUESTION") {
+        var q = s.question;
+        var pctAns = Math.round(100 * s.answeredCount / Math.max(1, s.playerCount));
+        var stMode = s.questionMode || "sync";
+        body = '<div class="tbar"><i id="liveTimerBar" style="width:100%"></i></div>' +
+          '<div class="two-col">' +
+            '<div class="rpg-card">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+                '<span class="rpg-badge">' + (stMode === "sync" ? "🅰 โจทย์เดียวกันทั้งห้อง" : "🅱 สุ่มโจทย์เฉพาะบุคคล") + '</span>' +
+                '<span class="rpg-badge" style="color:var(--gold)">ส่งแล้ว ' + s.answeredCount + ' / ' + s.playerCount + ' คน (' + pctAns + '%)</span>' +
+              '</div>' +
+              (q ? '<div style="margin-bottom:8px"><span class="rpg-badge">' + DH.esc(q.lv) + '</span> <span class="rpg-badge">' + DH.esc(q.tg) + '</span></div>' +
+                   '<p style="font-size:1.15rem;font-weight:700;margin:8px 0">' + DH.esc(q.t) + '</p>' +
+                   '<div id="hostQBoard"></div>'
+                 : '<div style="text-align:center;padding:48px 16px"><div style="font-size:3rem">🎲</div><h2>กำลังสุ่มโจทย์เฉพาะตัวให้นักเรียนแต่ละคน</h2><p style="color:var(--mute)">รอหมดเวลาแล้วระบบจะแสดงเฉลยในเครื่องของนักเรียนแต่ละคน</p></div>') +
+            '</div>' +
+            '<div class="rpg-card">' +
+              renderMonsterHud(s.monster).replace('class="mon-hud"', 'style="margin-bottom:12px"') +
+              '<img src="' + DH.esc(s.monster.img) + '" style="width:100%;border-radius:12px;border:2px solid var(--line);image-rendering:pixelated">' +
+              '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">' +
+                '<span style="font-size:0.85rem;color:var(--mute)">โหมดด่านนี้:</span>' +
+                '<select id="selLiveMode" style="background:var(--panel2);color:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 8px">' +
+                  '<option value="sync" ' + (stMode === "sync" ? "selected" : "") + '>โจทย์เดียวกัน (Sync)</option>' +
+                  '<option value="random" ' + (stMode === "random" ? "selected" : "") + '>สุ่มโจทย์ (Random)</option>' +
+                '</select>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      } else if (s.phase === "REVEAL") {
+        var rs = s.roomStats || {};
+        var q = rs.question;
+        body = '<div class="tbar"><i id="liveTimerBar" style="width:100%"></i></div>' +
+          '<div class="rpg-card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
+            '<div>' +
+              '<span style="font-size:1.2rem;font-weight:800">📊 ผลรวมทั้งห้อง: </span>' +
+              '<span class="rpg-badge" style="color:#4ade80">✓ ถูกเต็ม ' + (rs.correct || 0) + '</span> ' +
+              '<span class="rpg-badge" style="color:#fbbf24">🟡 บางส่วน ' + (rs.partial || 0) + '</span> ' +
+              '<span class="rpg-badge" style="color:#f87171">✗ ผิด ' + (rs.wrong || 0) + '</span> ' +
+              '<span class="rpg-badge" style="color:var(--gold)">⚔️ ดาเมจรวม +' + (rs.roomDmg || 0) + '</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px">' +
+              '<button class="btn-sec" id="btnHold">' + (s.holdExplain ? "▶ ปล่อยเวลานับต่อ" : "✋ ค้างไว้อธิบาย") + '</button>' +
+              '<button class="btn-pri" id="btnGoBattle">ไปฉากต่อสู้ ▶</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="two-col">' +
+            '<div class="rpg-card">' +
+              (q ? '<h3 style="margin:0 0 8px;color:var(--gold)">เฉลย + ภาพลูกศรของทั้งห้องซ้อนกัน</h3><div id="hostRevBoard"></div><p style="background:var(--panel2);padding:10px;border-radius:10px;border-left:4px solid var(--ok);margin-top:10px">' + DH.esc(q.why).replace(/\n/g, "<br>") + '</p>'
+                 : '<h3>โหมดสุ่มโจทย์ — นักเรียนกำลังดูเฉลยข้อของตัวเอง (10 วิ)</h3><p style="color:var(--mute)">สามารถกด "✋ ค้างไว้อธิบาย" หรือ "ไปฉากต่อสู้ ▶" ได้ตลอดเวลา</p>') +
+            '</div>' +
+            '<div class="rpg-card">' +
+              '<h3 style="margin:0 0 10px">📈 ความแม่นยำรายแรง &amp; จุดที่พลาดบ่อย</h3>' +
+              ((rs.forceStats || []).map(function (fs) {
+                var fn = (DH.FORCES[fs.force] && DH.FORCES[fs.force].n) || fs.force;
+                return '<div class="stat-bar-row"><div style="display:flex;justify-content:space-between;font-size:0.85rem"><span>' + DH.esc(fn) + '</span><span>✓ ' + fs.okPct + '% · ทิศผิด ' + fs.dirPct + '% · ลืม ' + fs.missPct + '%</span></div>' +
+                  '<div class="stat-bar-track"><div style="width:' + fs.okPct + '%;background:var(--ok)"></div><div style="width:' + fs.dirPct + '%;background:var(--warn)"></div><div style="width:' + fs.missPct + '%;background:var(--bad)"></div></div></div>';
+              }).join("")) +
+              '<h4 style="margin:14px 0 6px;color:#fca5a5">⚠️ ข้อผิดพลาดสูงสุดของห้องในข้อนี้</h4>' +
+              ((rs.topMistakes || []).length ? rs.topMistakes.map(function (mk) {
+                return '<div class="lb-row" style="justify-content:space-between"><span>' + DH.esc(mk.label) + '</span><span class="rpg-badge" style="color:#fca5a5">' + mk.count + ' คน (' + mk.pct + '%)</span></div>';
+              }).join("") : '<p style="color:#4ade80">🎉 เยี่ยมมาก! ไม่มีข้อผิดพลาดเด่นชัดในข้อนี้</p>') +
+            '</div>' +
+          '</div>';
+      } else if (s.phase === "BATTLE") {
+        var m = s.monster;
+        var actors = s.battleActors || [];
+        body = '<div class="scene-stage wide">' +
+          '<img class="scene-bg" src="' + DH.esc(m.img) + '" alt="Battle">' +
+          renderMonsterHud(m) +
+          '<div class="boss-impact-zone"><div class="big-dmg-pop">-' + (s.roomStats ? s.roomStats.roomDmg : 0) + ' HP!</div></div>' +
+          '<div class="actors-row">' +
+            '<div class="party-cluster">' + actors.map(function (a) {
+              var anim = (a.outcome === "correct" || a.outcome === "partial") ? "anim-atk" : (a.outcome === "shielded" ? "" : "anim-hurt");
+              return renderActorUnit(a, anim, true);
+            }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cutscene-caption">⚔️ <b>ฉากปะทะ!</b> (3 คนตอบถูกเร็วสุด + 2 คนที่พลาด) · ทีมทำความเสียหายรวม <b style="color:var(--gold)">' + (s.roomStats ? s.roomStats.roomDmg : 0) + '</b> ดาเมจ!' + (s.healBonusPct ? ' (💚 บูสต์ทีม +' + s.healBonusPct + '%)' : '') + '</div>' +
+          '</div>';
+      } else if (s.phase === "LEADERBOARD") {
+        var lb = (s.leaderboard || []).slice(0, 10);
+        body = '<div class="rpg-card">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+            '<h2 style="margin:0;color:var(--gold)">🏆 อันดับดาเมจสะสม (Top 10)</h2>' +
+            '<button class="btn-pri" id="btnNextLb">ไปต่อ ▶</button>' +
+          '</div>' +
+          lb.map(function (p) {
+            var job = DH.JOBS[p.job] || DH.JOBS.warrior;
+            var cardObj = p.lastCard ? DH.CARDS[p.lastCard] : null;
+            var delta = p.delta > 0 ? '<span style="color:#4ade80">▲' + p.delta + '</span>' : (p.delta < 0 ? '<span style="color:#f87171">▼' + Math.abs(p.delta) + '</span>' : '<span style="color:var(--mute)">•</span>');
+            return '<div class="lb-row r' + p.rank + '">' +
+              '<div style="width:32px;font-weight:900;font-size:1.1rem;text-align:center">#' + p.rank + '</div>' +
+              '<div style="width:36px">' + DH.heroAvatarSvg(p.look, p.job) + '</div>' +
+              '<div style="flex:1"><b>' + DH.esc(p.name) + '</b> <span style="font-size:0.8rem;color:var(--mute)">' + job.icon + ' ' + job.name + (p.streak >= 2 ? ' · 🔥' + p.streak : '') + '</span></div>' +
+              (cardObj ? '<span class="rpg-badge">' + cardObj.icon + ' ' + cardObj.name + '</span>' : '') +
+              '<div style="font-size:0.85rem;color:' + (p.lastDmg >= 0 ? '#4ade80' : '#f87171') + '">' + (p.lastDmg >= 0 ? '+' : '') + p.lastDmg + '</div>' +
+              '<div style="width:34px;text-align:center;font-weight:800">' + delta + '</div>' +
+              '<div style="min-width:85px;text-align:right;font-weight:900;font-size:1.1rem;color:var(--gold)">' + p.dmg + '</div>' +
+            '</div>';
+          }).join("") +
+          '</div>';
+      } else if (s.phase === "MON_DEFEAT" || s.phase === "MON_ESCAPE") {
+        var dead = s.phase === "MON_DEFEAT";
+        body = '<div class="scene-stage wide">' +
+          '<img class="scene-bg" src="' + DH.esc(s.monster.img) + '" style="' + (dead ? "filter:grayscale(0.85) brightness(0.6)" : "") + '">' +
+          '<div class="scene-scrim"></div>' +
+          '<div class="cutscene-caption" style="font-size:1.2rem">' +
+            (dead ? '💥 <b>โค่น ' + DH.esc(s.monster.name) + ' สำเร็จ!</b> นักผจญภัยทุกคนที่ร่วมโจมตีได้รับกล่องสมบัติการ์ดช่วย +1 ใบ!' : '💨 <b>' + DH.esc(s.monster.name) + ' หนีไปได้พร้อมบาดแผล!</b> มังกรบอสได้รับพลังเสริม +5% HP · เตรียมตัวลุยด่านถัดไป!') +
+          '</div></div>';
+      } else if (s.phase === "VICTORY") {
+        body = '<div class="scene-stage wide">' +
+          '<img class="scene-bg" src="/assets/dragon3.png" style="filter:brightness(0.75)">' +
+          '<div class="scene-scrim"></div>' +
+          '<div class="actors-row" style="justify-content:center;bottom:18%">' +
+            '<div class="party-cluster">' + s.cutsceneCast.map(function (a) { return renderActorUnit(a, "anim-walk", false); }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cutscene-caption" style="border-color:#4ade80;font-size:1.25rem">🎉 <b>ชัยชนะอันยิ่งใหญ่!</b> ผู้กล้าทั้ง 5 อันดับสูงสุดนำทัพพิชิตมังกรเพลิงบรรพกาลสำเร็จ!</div>' +
+          '</div>';
+      } else if (s.phase === "DEFEAT") {
+        var fate = s.defeatFate === "eat" ? "ถูกมังกรกลืนลงท้อง! 🐉😋" : "ถูกมังกรพ่นไฟเผาวอด! 🔥🐉";
+        body = '<div class="scene-stage wide">' +
+          '<img class="scene-bg" src="/assets/dragon2.png">' +
+          '<div class="' + (s.defeatFate === "eat" ? "dragon-eat-overlay" : "dragon-fire-overlay") + '"></div>' +
+          '<div class="actors-row" style="justify-content:center;bottom:14%">' +
+            '<div class="party-cluster">' + s.cutsceneCast.map(function (a) { return renderActorUnit(a, "anim-hurt", false); }).join("") + '</div>' +
+          '</div>' +
+          '<div class="cutscene-caption" style="border-color:#ef4444;font-size:1.2rem">💀 <b>พ่ายแพ้ต่อมังกร...</b> ดาเมจรวมยังไม่พอโค่นบอส เหล่านักผจญภัย ' + fate + '</div>' +
+          '</div>';
+      } else if (s.phase === "FINAL_BOARD") {
+        var lbAll = s.leaderboard || [];
+        var top3 = lbAll.slice(0, 3);
+        var medals = ["🥇 อันดับ 1 (กรอบทอง)", "🥈 อันดับ 2 (กรอบเงิน)", "🥉 อันดับ 3 (กรอบทองแดง)"];
+        body = '<div class="rpg-card">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
+            '<h1 style="margin:0;color:var(--gold)">👑 สรุปอันดับผู้กล้าสูงสุด</h1>' +
+            '<div style="display:flex;gap:8px">' +
+              (s.monster.hp > 0 ? '<button class="btn-sec" id="btnRetryBoss">🐉 ท้ามังกรอีกครั้ง</button>' : '') +
+              '<button class="btn-pri" id="btnShowMistakes">📊 ดูสรุปจุดที่ห้องพลาด ▶</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="podium-grid">' + top3.map(function (p, i) {
+            var job = DH.JOBS[p.job] || DH.JOBS.warrior;
+            return '<div class="podium-card rank-frame-' + (i + 1) + '">' +
+              '<div style="font-weight:900;font-size:0.95rem;margin-bottom:6px">' + medals[i] + '</div>' +
+              '<div style="width:96px;margin:0 auto">' + DH.heroAvatarSvg(p.look, p.job) + '</div>' +
+              '<div style="font-weight:900;font-size:1.2rem;margin-top:4px">' + DH.esc(p.name) + '</div>' +
+              '<div style="font-size:0.85rem;color:var(--mute)">' + job.icon + ' ' + job.name + '</div>' +
+              '<div style="font-size:1.5rem;font-weight:900;color:var(--gold);margin-top:4px">' + p.dmg + ' ดาเมจ</div>' +
+            '</div>';
+          }).join("") + '</div>' +
+          '<div style="max-height:36vh;overflow-y:auto">' + lbAll.slice(3).map(function (p) {
+            var job = DH.JOBS[p.job] || DH.JOBS.warrior;
+            return '<div class="lb-row"><b style="width:36px">#' + p.rank + '</b><span style="flex:1">' + DH.esc(p.name) + ' (' + job.icon + ' ' + job.name + ')</span><b style="color:var(--gold)">' + p.dmg + '</b></div>';
+          }).join("") + '</div>' +
+          '</div>';
+      } else if (s.phase === "MISTAKE_REPORT") {
+        var mks = s.classMistakes || [];
+        body = '<div class="rpg-card">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">' +
+            '<h1 style="margin:0;color:var(--gold)">📋 สรุปจุดที่นักเรียนทั้งห้องมักพลาด</h1>' +
+            '<div style="display:flex;gap:8px">' +
+              '<a href="/api/room/' + s.pin + '/csv" class="btn-blue">📥 ดาวน์โหลดผลคะแนน CSV</a>' +
+              '<a href="/host" class="btn-sec" onclick="sessionStorage.removeItem(\'dh_host_pin\')">เริ่มห้องใหม่</a>' +
+            '</div>' +
+          '</div>' +
+          (mks.length ? mks.map(function (m) {
+            return '<div class="rpg-card" style="background:var(--panel2);margin-bottom:10px">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                '<b style="font-size:1.05rem;color:#fca5a5">⚠️ ' + DH.esc(m.label) + '</b>' +
+                '<span class="rpg-badge">พลาดรวม ' + m.totalCount + ' ครั้ง (' + m.pctPlayers + '% ของห้อง)</span>' +
+              '</div>' +
+              '<p style="margin:6px 0 0;color:#cbd5e1;font-size:0.92rem">💡 แนวทางย้ำให้นักเรียน: ' + DH.esc(m.tip) + '</p>' +
+            '</div>';
+          }).join("") : '<p style="color:#4ade80">🎉 ยอดเยี่ยม! นักเรียนทั้งห้องไม่พบข้อผิดพลาดซ้ำเลย</p>') +
+          '</div>';
+      }
+
+      app.innerHTML = topbarHtml() + body;
+      bindTopbar();
+      bindPhaseActions();
+    }
+
+    function bindPhaseActions() {
+      var s = state;
+      var el;
+      if (s.phase === "LOBBY") {
+        if ((el = document.getElementById("btnStartGame"))) el.onclick = function () { postRoom("start"); };
+        if ((el = document.getElementById("btnAddBots"))) el.onclick = function () { postRoom("bots"); };
+        if ((el = document.getElementById("chkCards"))) el.onchange = function (e) { postRoom("settings", { cards: e.target.checked }); };
+        if ((el = document.getElementById("chkRevAuto"))) el.onchange = function (e) { postRoom("settings", { revealAuto: e.target.checked }); };
+        if ((el = document.getElementById("selStageMode"))) el.onchange = function (e) { postRoom("settings", { stageMode: { stageIdx: 0, mode: e.target.value } }); };
+        document.querySelectorAll("[data-kick]").forEach(function (btn) {
+          btn.onclick = function () { postRoom("kick", { uid: btn.dataset.kick }); };
+        });
+      } else if (s.phase === "QUESTION") {
+        var qb = document.getElementById("hostQBoard");
+        if (qb && s.question) FBD.mount(qb, s.question, { readOnly: true });
+        if ((el = document.getElementById("selLiveMode"))) el.onchange = function (e) {
+          postRoom("settings", { stageMode: { stageIdx: s.stageIdx, mode: e.target.value } });
+        };
+      } else if (s.phase === "REVEAL") {
+        var rb = document.getElementById("hostRevBoard");
+        if (rb && s.roomStats && s.roomStats.question) {
+          FBD.mount(rb, s.roomStats.question, {
+            readOnly: true,
+            revealData: { revealMode: "key" },
+            hideToggle: true,
+            overlayArrows: s.roomStats.overlay || []
+          });
+        }
+        if ((el = document.getElementById("btnHold"))) el.onclick = function () { postRoom("hold"); };
+        if ((el = document.getElementById("btnGoBattle"))) el.onclick = function () { postRoom("next"); };
+      } else if (s.phase === "LEADERBOARD") {
+        if ((el = document.getElementById("btnNextLb"))) el.onclick = function () { postRoom("next"); };
+      } else if (s.phase === "FINAL_BOARD") {
+        if ((el = document.getElementById("btnRetryBoss"))) el.onclick = function () { postRoom("retry-boss"); };
+        if ((el = document.getElementById("btnShowMistakes"))) el.onclick = function () { postRoom("next"); };
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

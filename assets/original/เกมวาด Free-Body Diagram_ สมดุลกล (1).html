@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>เกมวาด Free-Body Diagram: สมดุลกล</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f2f5f9;--card:#fff;--ink:#14213d;--mute:#5b6779;--line:#d5dce6;--W:#2563eb;--N:#15803d;--R:#c2410c;--S:#a21caf;--P:#be185d;--Q:#0369a1;--T:#7e22ce;--U:#0e7490;--ok:#15803d;--bad:#b91c1c;--boxok:#bbf7d0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1626;--card:#17233a;--ink:#e8edf6;--mute:#9aa7bd;--line:#2c3b57;--W:#60a5fa;--N:#4ade80;--R:#fb923c;--S:#e879f9;--P:#f472b6;--Q:#38bdf8;--T:#c084fc;--U:#22d3ee;--ok:#4ade80;--bad:#f87171;--boxok:#14532d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans Thai',system-ui,sans-serif;line-height:1.55}
+.wrap{max-width:560px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+h1{font-size:1.5rem;margin:6px 0}
+.top{display:flex;justify-content:space-between;align-items:center;color:var(--mute);font-size:.9rem;gap:6px}
+.lv{padding:2px 10px;border-radius:99px;border:1px solid var(--line);font-weight:600}
+.tmb{background:none;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.tbar{height:6px;background:var(--line);border-radius:3px;margin:6px 0;overflow:hidden}.tbar i{display:block;height:100%;width:100%}
+.q{font-size:1rem;font-weight:600;margin:8px 0}
+.tags{display:flex;gap:6px;flex-wrap:wrap;font-size:.85rem;color:var(--mute)}
+.tags span{border:1px solid var(--line);border-radius:6px;padding:1px 8px}
+svg{width:100%;height:auto;display:block;touch-action:manipulation}
+.bx{fill:var(--card);transition:fill .35s}.bo{fill:var(--card)}svg.key .bx{fill:var(--boxok)}
+#lay{transition:opacity .2s}
+.vws{display:flex;gap:6px;margin:6px 0}
+.vws button{flex:1;font:inherit;font-weight:600;font-size:.85rem;padding:8px 4px;border-radius:10px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.vws button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.pal{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pal button{font:inherit;font-weight:600;font-size:.9rem;padding:11px 6px;border-radius:10px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.pal button.on{color:#fff}
+.ghost{position:fixed;z-index:9;pointer-events:none;transform:translate(-50%,-130%);color:#fff;font-weight:800;padding:10px 14px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.hint{font-size:.9rem;color:var(--mute);margin:8px 0}
+.row{display:flex;gap:8px;margin-top:10px}
+.btn{font:inherit;font-weight:800;padding:13px 16px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);cursor:pointer;flex:1}
+.btn.alt{background:transparent;color:var(--ink);border:2px solid var(--line);flex:0 0 auto}
+button:focus-visible{outline:3px solid var(--W);outline-offset:2px}
+.fb{border-left:6px solid var(--bad)}.fb.good{border-left-color:var(--ok)}
+.fb ul{padding-left:0;list-style:none;margin:6px 0}
+.big{font-size:3rem;font-weight:800;margin:0}
+.mon{position:relative}
+.arena{display:flex;justify-content:space-between;align-items:flex-end;height:108px;overflow:hidden;padding:0 4px}
+.pl,.mo{position:relative;width:96px;text-align:center}
+.pl svg,.mo svg{width:96px;height:80px;display:block}
+.hr{font-size:.85rem;letter-spacing:2px;height:22px}
+.mi{margin-top:6px}.mn{font-weight:800}.ms{font-size:.85rem;color:var(--mute)}
+.hpb{height:12px;background:var(--line);border-radius:6px;overflow:hidden;margin:4px 0}.hpb i{display:block;height:100%;background:var(--bad);transition:width .7s .5s}
+.dmg{position:absolute;left:0;right:0;top:-2px;font-weight:800;font-size:1.5rem;color:var(--bad);pointer-events:none;animation:fly 1.2s .35s ease-out both;text-shadow:0 1px 0 var(--card)}
+@keyframes fly{0%{opacity:0}15%{opacity:1}100%{transform:translateY(-26px);opacity:0}}
+@keyframes lunge{0%,100%{transform:none}35%,60%{transform:translateX(90px)}}
+@keyframes mlunge{0%,100%{transform:none}35%,60%{transform:translateX(-90px)}}
+@keyframes shk{0%,100%{transform:none;filter:none}15%,55%{transform:translateX(8px) rotate(4deg);filter:sepia(1) saturate(7) hue-rotate(-40deg)}35%,75%{transform:translateX(-8px) rotate(-4deg);filter:sepia(1) saturate(7) hue-rotate(-40deg)}}
+@keyframes flash{0%{opacity:0;transform:scale(.4)}40%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:scale(1.5)}}
+.atk .pl svg{animation:lunge .8s}.atk .mo svg{animation:shk .6s .3s}
+.hurt .mo svg{animation:mlunge .8s}.hurt .pl svg{animation:shk .6s .3s}
+.atk .mo:before,.hurt .pl:before{content:"\1F4A5";position:absolute;left:34px;top:24px;font-size:2rem;z-index:2;animation:flash .5s .3s both}
+.dead .mo svg{opacity:.3;transform:translateY(10px) rotate(20deg) scale(.7)}
+.pdead .pl svg,.pdd svg{opacity:.3;transform:translateY(10px) rotate(-85deg) scale(.7)}
+@keyframes mkill{0%,25%{opacity:1;transform:none;filter:none}35%,55%{transform:translateX(8px) rotate(4deg);filter:sepia(1) saturate(7) hue-rotate(-40deg)}45%{transform:translateX(-8px) rotate(-4deg);filter:sepia(1) saturate(7) hue-rotate(-40deg)}70%{opacity:1;transform:none;filter:none}100%{opacity:.3;transform:translateY(10px) rotate(20deg) scale(.7)}}
+@keyframes pkill{0%,25%{opacity:1;transform:none;filter:none}35%,55%{transform:translateX(8px) rotate(4deg);filter:sepia(1) saturate(7) hue-rotate(-40deg)}45%{transform:translateX(-8px) rotate(-4deg);filter:sepia(1) saturate(7) hue-rotate(-40deg)}70%{opacity:1;transform:none;filter:none}100%{opacity:.3;transform:translateY(10px) rotate(-85deg) scale(.7)}}
+.dead.atk .mo svg{animation:mkill 1.5s both}.pdead.hurt .pl svg{animation:pkill 1.5s both}
+@media (prefers-reduced-motion:reduce){.atk .pl svg,.atk .mo svg,.hurt .mo svg,.hurt .pl svg,.dead.atk .mo svg,.pdead.hurt .pl svg,.dmg,.atk .mo:before,.hurt .pl:before{animation:none}.dmg{opacity:1}}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+var T={W:{n:"น้ำหนัก W",c:"var(--W)"},N:{n:"แรงตั้งฉากจากพื้นผิว N",c:"var(--N)"},R:{n:"แรงจากผนัง R",c:"var(--R)"},S:{n:"แรงจากผนังด้านตรงข้าม S",c:"var(--S)"},P:{n:"แรงจากวัตถุที่สัมผัส P",c:"var(--P)"},Q:{n:"แรงจากวัตถุสัมผัสอีกด้าน Q",c:"var(--Q)"},T:{n:"แรงตึงเชือก T",c:"var(--T)"},U:{n:"แรงตึงเชือก 2 (T₂)",c:"var(--U)"}};
+var Q=[
+{lv:"ง่าย",k:"r",two:1,tg:"แขวนด้วยเชือก 2 เส้น",st:"สมดุล",t:"กล่องมวล 5 kg ห้อยนิ่งด้วยเชือก 2 เส้น เชือก 1 ผูกเพดานเฉียงขึ้นซ้าย 30° จากแนวราบ เชือก 2 ผูกกำแพงทางขวาในแนวราบ",rp:[150,0],bt:["W","N","T","U"],ex:[["W",270],["T",150],["U",0]],why:"เชือกดึงตามแนวเชือกเสมอ T₁ จึงชี้เฉียงขึ้นซ้าย (150°) ส่วน T₂ ชี้ขวาในแนวราบ ไม่มีพื้นรองรับกล่องจึงไม่มี N"},
+{lv:"ง่าย",k:"r",two:1,tg:"แขวนด้วยเชือก 2 เส้น",st:"สมดุล",t:"กล่องมวล 80 kg แขวนด้วยเชือก 2 เส้น เชือก 1 เฉียงขึ้นขวา 60° และเชือก 2 เฉียงขึ้นซ้าย 30° จากแนวราบ",rp:[60,150],bt:["W","N","T","U"],ex:[["W",270],["T",60],["U",150]],why:"T₁ ชี้ขึ้นขวา 60° และ T₂ ชี้ขึ้นซ้าย 30° (วัดจากแนวขวาได้ 150°) แนวราบของแรงทั้งสองหักล้างกัน แนวดิ่งรวมกันต้านน้ำหนัก"},
+{lv:"กลาง",k:"r",two:1,tg:"แขวนด้วยเชือก 2 เส้น",st:"สมดุล",t:"กล่องมวล 15 kg แขวนด้วยเชือก 2 เส้น เชือก 1 เฉียงขึ้นขวา 37° และเชือก 2 เฉียงขึ้นซ้าย 53° จากแนวราบ",rp:[37,127],bt:["W","N","T","U"],ex:[["W",270],["T",37],["U",127]],why:"T₁ ชี้ขึ้นขวา 37° ส่วน T₂ ชี้ขึ้นซ้าย 53° จากแนวราบ วัดจากแนวขวาได้ 127° (ยอมให้คลาดเคลื่อน ±6°)"},
+{lv:"กลาง",k:"inc",ia:45,dot:1,tg:"พื้นเอียง 45° ลื่น",st:"สมดุล",t:"ทรงกลมหนัก 20 N วางบนพื้นเอียง 45° ที่ลื่นมาก (เอียงสูงขึ้นทางขวา) ตรึงไว้ด้วยเชือกที่ผูกไปยังยอดพื้นเอียง เชือกทำมุม 15° กับผิวพื้นเอียง",rp:[60],bt:["W","N","T","R"],ex:[["W",270],["N",135],["T",60]],why:"N ตั้งฉากกับผิวพื้นเอียง จึงชี้เฉียงขึ้นซ้าย (135°) เชือกเอียงออกจากผิวอีก 15° T จึงอยู่ที่ 45°+15° = 60° จากแนวราบ"},
+{lv:"ยาก",k:"ws",ia:30,wl:"v",tg:"ผิวลื่นทุกจุด",st:"สมดุล",t:"ทรงกลม A (2 kg) และ B (3 kg) วางบนพื้นเอียง 30° ที่ลื่น (เอียงสูงขึ้นทางขวา) B ชิดผนังที่ตั้งฉากกับแนวระดับและสัมผัสกับ A เลือกมุมมองด้านบนเพื่อวาดแรงของภาพรวม, A และ B",bt:["W","N","R","P"],ex:{all:[["W",270],["N",120],["R",0]],A:[["W",270],["N",120],["P",30]],B:[["W",270],["N",120],["R",0],["P",210]]},why:"ภาพรวม: แรงที่ A กับ B ดันกันเป็นแรงภายใน เหลือ W, N (120°) และ R จากผนัง (0°)\nA: W, N และ P จาก B ขนานพื้นเอียงชี้ขึ้นเนิน (30°)\nB: W, N, R และ P จาก A ชี้ลงเนิน (210°)"},
+{lv:"ยาก",k:"ws",ia:30,wl:"p",tg:"ผิวลื่นทุกจุด",st:"สมดุล",t:"ทรงกลม A และ B มวล 3 kg เท่ากัน วางบนพื้นเอียง 30° ที่ลื่น B ชิดกำแพงที่ตั้งฉากกับพื้นเอียง และสัมผัสกับ A",bt:["W","N","R","P"],ex:{all:[["W",270],["N",120],["R",30]],A:[["W",270],["N",120],["P",30]],B:[["W",270],["N",120],["R",30],["P",210]]},why:"กำแพงตั้งฉากกับพื้นเอียง แรง R จากกำแพงจึงขนานพื้นเอียงชี้ขึ้นเนิน (30°)\nภาพรวม: W, N, R\nA: W, N, P (30°)\nB: W, N, R (30°) และ P จาก A (210°)"},
+{lv:"ยาก",k:"ws",ia:37,wl:"v",sw:1,tg:"ผิวลื่นทุกจุด",st:"สมดุล",t:"ทรงกลม A (ล่าง ชิดผนัง) และ B (บน) มวล 10 kg เท่ากัน วางบนพื้นเอียง 37° ที่ลื่น ผนังตั้งฉากกับแนวระดับ",bt:["W","N","R","P"],ex:{all:[["W",270],["N",127],["R",0]],A:[["W",270],["N",127],["R",0],["P",217]],B:[["W",270],["N",127],["P",37]]},why:"N ตั้งฉากผิวเอียง 37° ชี้ที่ 127°\nภาพรวม: W, N, R\nA (ล่าง): W, N, R และ P จาก B ชี้ลงเนิน (217°)\nB (บน): W, N และ P จาก A ชี้ขึ้นเนิน (37°)"},
+{lv:"ยาก",k:"b2",tg:"กล่องและผนังลื่น",st:"สมดุล",vn:["ภาพรวม","โฟกัสลูกล่าง (A)","โฟกัสลูกบน (B)"],t:"ทรงกลม 2 ลูก มวล 1 kg เท่ากัน รัศมี 2.5 cm วางในกล่องกว้าง 8 cm ผนังลื่น ลูก A อยู่ล่างชิดผนังซ้าย ลูก B อยู่บนชิดผนังขวาและพิงลูก A",bt:["W","N","R","S","P"],ex:{all:[["W",270],["N",90],["R",0],["S",180]],A:[["W",270],["N",90],["R",0],["P",233]],B:[["W",270],["P",53],["S",180]]},why:"เส้นเชื่อมจุดศูนย์กลางมีแนวราบ 3 cm แนวดิ่ง 4 cm จึงทำมุม 53°\nภาพรวม: W, N, R (0°), S (180°)\nA: W, N, R และ P จาก B ชี้ลงซ้าย (233°)\nB: W, P จาก A ชี้ขึ้นขวา (53°) และ S จากผนังขวา (180°)"},
+{lv:"ยาก",k:"b3",rope:1,vn:["ภาพรวม","โฟกัสท่อบน (A)","โฟกัสท่อล่างซ้าย (B)"],tg:"พื้นลื่น มีเชือกรั้ง",st:"สมดุล",t:"ท่อทรงกระบอก 3 ท่อน มวล 4 kg เท่ากัน รัศมี 10 cm วางซ้อนกันบนพื้นลื่น ผูกท่อล่างสองท่อนด้วยเชือกยาว 32 cm ท่อ A อยู่บน ท่อ B อยู่ล่างซ้าย",bt:["W","N","T","P","Q"],ex:{all:[["W",270],["N",90]],A:[["W",270],["P",37],["Q",143]],B:[["W",270],["N",90],["T",0],["P",217]]},why:"ภาพรวม: เชือกเป็นแรงภายใน เหลือ W และ N จากพื้น\nท่อบน: W และแรงจากท่อล่างทั้งสอง ชี้ขึ้นขวา 37° (P) และขึ้นซ้าย 143° (Q)\nท่อล่างซ้าย: W, N, T จากเชือก (0°) และแรงจากท่อบนชี้ลงซ้าย 217° (ระยะแนวราบ 16 จากเส้นเชื่อม 20 cm ทำมุม 37°)"},
+{lv:"ยาก",k:"b3",wlb:1,vn:["ภาพรวม","โฟกัสท่อบน (A)","โฟกัสท่อล่างซ้าย (B)"],tg:"กล่องและผนังลื่น",st:"สมดุล",t:"ท่อทรงกระบอก 3 ท่อน มวล 3 kg เท่ากัน รัศมี 0.5 m วางในกล่องที่ลื่น ศูนย์กลางท่อล่างสองท่อนห่างกัน 1.6 m ท่อ A อยู่บน ท่อ B อยู่ล่างซ้าย",bt:["W","N","R","S","P","Q"],ex:{all:[["W",270],["N",90],["R",0],["S",180]],A:[["W",270],["P",37],["Q",143]],B:[["W",270],["N",90],["R",0],["P",217]]},why:"ภาพรวม: W, N, R (0°), S (180°)\nท่อบน: W, P จากท่อซ้ายชี้ขึ้นขวา 37° และ Q จากท่อขวาชี้ขึ้นซ้าย 143°\nท่อล่างซ้าย: W, N, R และแรงจากท่อบนชี้ลงซ้าย 217° (ระยะแนวราบ 0.8 m จากเส้นเชื่อม 1.0 m ทำมุม 37°)"}
+];
+Q.forEach(function(q){q.why=q.why.split("\n").filter(function(l){return l.indexOf("ภาพรวม")!=0}).join("\n");q.M=q.k=="ws"||q.k[0]=="b";if(q.M&&!q.vn)q.vn=["ภาพรวม","โฟกัส A","โฟกัส B"];q.tm=({"ง่าย":15,"กลาง":20,"ยาก":30})[q.lv]*(q.M?2:1)+(q.two?10:0)});
+var i=0,score=0,sel=null,pl={},done=false,S={},view="key",tmr=null,timed=true,app=document.getElementById("app");
+var MON=[{n:"ผีเชือกพันกัน"},{n:"ก็อเล็มพื้นเอียง"},{n:"สไลม์ทรงกลม"},{n:"มังกรท่อเหล็ก (บอส)"}];
+var G=[{k:0,s:0,e:2},{k:1,s:3,e:5},{k:2,s:6,e:7},{k:3,s:8,e:9}];
+function gi(){for(var n=0;n<G.length;n++)if(i>=G[n].s&&i<=G[n].e)return G[n]}
+function hpOf(g){var s=0;for(var j=g.s;j<=g.e;j++)if(S[j]&&S[j].d)s+=dmgOf(S[j].p);return Math.max(0,100*(g.e-g.s+1)-s)}
+function defs(){var c=0,t="";G.forEach(function(g,n){var d=hpOf(g)<=0;if(d)c++;t+=(d?"🏆 ":"🏃 ")+MON[n].n+"  "});return "ล้มมอนสเตอร์ได้ "+c+" / "+G.length+" ตัว<br>"+t}
+function monSvg(k){var o='stroke-width="3" stroke-linejoin="round"',e;
+ if(k==0)e='<path d="M20 72V34Q20 8 48 8Q76 8 76 34V72L66 62L57 72L48 62L39 72L30 62Z" fill="#c4b5fd" stroke="#5b21b6" '+o+'/><ellipse cx="38" cy="34" rx="5" ry="7" fill="#1e1b4b"/><ellipse cx="58" cy="34" rx="5" ry="7" fill="#1e1b4b"/><ellipse cx="48" cy="50" rx="6" ry="5" fill="#1e1b4b"/>';
+ else if(k==1)e='<rect x="14" y="36" width="12" height="26" rx="4" fill="#94a3b8" stroke="#334155" '+o+'/><rect x="70" y="36" width="12" height="26" rx="4" fill="#94a3b8" stroke="#334155" '+o+'/><rect x="24" y="10" width="48" height="60" rx="8" fill="#94a3b8" stroke="#334155" '+o+'/><rect x="34" y="26" width="10" height="8" fill="#fde047"/><rect x="52" y="26" width="10" height="8" fill="#fde047"/><path d="M40 50H56M48 50V62" stroke="#334155" stroke-width="3"/>';
+ else if(k==2)e='<path d="M10 70Q8 34 34 24Q48 14 62 24Q88 34 86 70Z" fill="#4ade80" stroke="#166534" '+o+'/><circle cx="36" cy="46" r="7" fill="#fff"/><circle cx="60" cy="46" r="7" fill="#fff"/><circle cx="37" cy="47" r="3" fill="#14532d"/><circle cx="61" cy="47" r="3" fill="#14532d"/><path d="M38 58Q48 66 58 58" fill="none" stroke="#166534" stroke-width="3"/>';
+ else e='<polygon points="16,40 4,14 34,30" fill="#fca5a5" stroke="#991b1b" '+o+'/><polygon points="80,40 92,14 62,30" fill="#fca5a5" stroke="#991b1b" '+o+'/><circle cx="48" cy="46" r="28" fill="#f87171" stroke="#991b1b" '+o+'/><circle cx="37" cy="40" r="6" fill="#fff"/><circle cx="59" cy="40" r="6" fill="#fff"/><circle cx="38" cy="41" r="3" fill="#450a0a"/><circle cx="58" cy="41" r="3" fill="#450a0a"/><path d="M28 28L42 34M68 28L54 34" stroke="#450a0a" stroke-width="3"/><path d="M34 58L40 66L46 58L52 66L58 58L62 64" fill="#fff" stroke="#450a0a" stroke-width="2"/>';
+ return '<svg viewBox="0 0 96 80">'+e+'</svg>'}
+function dmgOf(p){return p>=0.5?Math.round(p*100):0}
+function hearts(){var c=3;for(var j in S)if(S[j].d&&S[j].p<0.5)c--;return Math.max(0,c)}
+function heroSvg(){return '<svg viewBox="0 0 96 80"><rect x="29" y="58" width="9" height="16" rx="3" fill="#1e3a8a"/><rect x="42" y="58" width="9" height="16" rx="3" fill="#1e3a8a"/><rect x="28" y="32" width="24" height="28" rx="6" fill="#3b82f6" stroke="#1e3a8a" stroke-width="3"/><line x1="52" y1="42" x2="84" y2="20" stroke="#cbd5e1" stroke-width="5" stroke-linecap="round"/><line x1="52" y1="42" x2="60" y2="36" stroke="#92400e" stroke-width="5" stroke-linecap="round"/><circle cx="40" cy="20" r="11" fill="#fcd34d" stroke="#92400e" stroke-width="3"/><path d="M28 18Q40 0 52 18Z" fill="#2563eb" stroke="#1e3a8a" stroke-width="3" stroke-linejoin="round"/><circle cx="45" cy="22" r="2" fill="#14213d"/></svg>'}
+function over(){var lb=0;for(var j in S)if(S[j].d&&S[j].p<0.5)lb=Math.max(lb,+j);var g=G.filter(function(x){return lb>=x.s&&lb<=x.e})[0]||G[0];
+ app.innerHTML='<div class="card mon" style="text-align:center"><div class="arena" style="justify-content:center;gap:40px"><div class="pl pdd">'+heroSvg()+'</div><div class="mo">'+monSvg(g.k)+'</div></div><h1>\ud83d\udc80 \u0e1e\u0e48\u0e32\u0e22\u0e41\u0e1e\u0e49</h1><p>'+MON[g.k].n+' \u0e15\u0e35\u0e04\u0e38\u0e13\u0e04\u0e23\u0e1a 3 \u0e04\u0e23\u0e31\u0e49\u0e07 \u0e15\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e34\u0e48\u0e21\u0e43\u0e2b\u0e21\u0e48\u0e15\u0e31\u0e49\u0e07\u0e41\u0e15\u0e48\u0e02\u0e49\u0e2d 1</p><p>\u0e44\u0e1b\u0e44\u0e14\u0e49\u0e16\u0e36\u0e07\u0e02\u0e49\u0e2d '+(lb+1)+'</p><button class="btn" id="re">\u0e40\u0e23\u0e34\u0e48\u0e21\u0e43\u0e2b\u0e21\u0e48</button></div>';
+ document.getElementById("re").onclick=start}
+function updMon(mode){var g=gi(),el=document.getElementById("mon");if(!g||!el)return;var n=g.e-g.s+1,mx=100*n,hp=hpOf(g),h=hearts(),dead=hp<=0,dn=0,hs="";
+ var prev=mode=="atk"?Math.min(mx,hp+dmgOf(S[i].p)):hp;for(var j=g.s;j<=g.e;j++)if(S[j]&&S[j].d)dn++;
+ for(var k=0;k<3;k++)hs+=k<h?"\u2764\ufe0f":"\ud83d\udda4";
+ var tx=dead?"\ud83d\udca5 \u0e25\u0e49\u0e21\u0e21\u0e2d\u0e19\u0e2a\u0e40\u0e15\u0e2d\u0e23\u0e4c\u0e44\u0e14\u0e49\u0e41\u0e25\u0e49\u0e27!":(dn==n?"\u0e21\u0e2d\u0e19\u0e2a\u0e40\u0e15\u0e2d\u0e23\u0e4c\u0e2b\u0e19\u0e35\u0e44\u0e1b...":"\u0e14\u0e48\u0e32\u0e19 "+(g.k+1)+"/"+G.length+" \u00b7 \u0e02\u0e49\u0e2d\u0e17\u0e35\u0e48 "+(i-g.s+1)+" \u0e08\u0e32\u0e01 "+n);
+ el.className="card mon"+(dead?" dead":"")+(h<=0?" pdead":"")+(mode?" "+mode:"");
+ el.innerHTML='<div class="arena"><div class="pl">'+heroSvg()+'<div class="hr">'+hs+'</div>'+(mode=="hurt"?'<span class="dmg">-1 \u2764\ufe0f</span>':'')+'</div><div class="mo">'+monSvg(g.k)+(mode=="atk"?'<span class="dmg">-'+dmgOf(S[i].p)+'</span>':'')+'</div></div><div class="mi"><div class="mn">'+MON[g.k].n+'</div><div class="hpb"><i id="hpf" style="width:'+(100*prev/mx)+'%"></i></div><div class="ms">HP '+hp+' / '+mx+' \u00b7 '+tx+'</div></div>';
+ if(mode=="atk")setTimeout(function(){var f=document.getElementById("hpf");if(f)f.style.width=(100*hp/mx)+"%"},60)}
+function pt(a,r,o){o=o||[180,135];var d=a*Math.PI/180;return [o[0]+r*Math.cos(d),o[1]-r*Math.sin(d)]}
+function vw(){return S[i]&&S[i].vw||"all"}
+function EX(q,v){return Array.isArray(q.ex)?q.ex:q.ex[v]}
+function okA(a,b){var d=Math.abs(a-b)%360;return Math.min(d,360-d)<=6}
+function lab(t){return t=="U"?"T₂":(t=="T"&&Q[i].two?"T₁":t)}
+function hint(t){document.getElementById("hint").textContent=t}
+function arrow(type,a,dash,o,k){o=o||[180,135];k=k||1;var p=pt(a,88*k,o),l=pt(a+90,7*k,o),w=pt(a-90,7*k,o),b=pt(a,76*k,o),c=T[type].c,lb=pt(a,112*k,o);
+ var bl=[b[0]+l[0]-o[0],b[1]+l[1]-o[1]],br=[b[0]+w[0]-o[0],b[1]+w[1]-o[1]];
+ return '<g opacity="'+(dash?.9:1)+'"><line x1="'+o[0]+'" y1="'+o[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" stroke="'+c+'" stroke-width="5"'+(dash?' stroke-dasharray="7 5"':'')+'/><polygon points="'+p+' '+bl+' '+br+'" fill="'+c+'"/><text x="'+lb[0]+'" y="'+(lb[1]+5)+'" text-anchor="middle" font-weight="800" font-size="16" fill="'+c+'">'+lab(type)+'</text></g>'}
+function cen(g,v){var ks=Object.keys(g.b),c=[0,0];if(v=="all")ks.forEach(function(k){c[0]+=g.b[k][0]/ks.length;c[1]+=g.b[k][1]/ks.length});else c=g.b[v];return c}
+function ro(){return Q[i].M&&vw()=="all"}
+var HINT="ลากปุ่มแรงจากด้านล่างขึ้นไปวางรอบวัตถุ ลูกศรจะชี้ไปตามตำแหน่งที่วาง (หรือแตะปุ่มแล้วแตะที่ภาพก็ได้) แตะวงกลม ✕ เพื่อยกเลิกลูกศร";
+function ctl(){var r=ro();document.getElementById("pal").style.display=r?"none":"";document.getElementById("clr").style.display=r?"none":""}
+function ovl(q,show){var s="",g=geo(q),c=cen(g,"all"),kv=view=="key";
+ ["A","B"].forEach(function(k){var o=[180+g.b[k][0]-c[0],135+g.b[k][1]-c[1]],e=EX(q,k),p0=S[i].pls[k];
+  if(show&&kv)e.forEach(function(x){s+=arrow(x[0],x[1],false,o,.62)});
+  else Object.keys(p0).forEach(function(t){var bad=show&&!e.some(function(x){return x[0]==t&&okA(x[1],p0[t])});s+=arrow(t,p0[t],bad,o,.62)})});
+ var lb=show?(kv?"เฉลย":"คำตอบของฉัน"):"ดูอย่างเดียว";
+ return s+'<rect x="238" y="8" width="114" height="26" rx="13" fill="'+(show?(kv?"#15803d":"#2563eb"):"#64748b")+'"/><text x="295" y="26" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">'+lb+'</text>'}
+function layer(q,show){if(q.M&&vw()=="all")return ovl(q,show);var s="",e=EX(q,vw());
+ if(show&&view=="key")e.forEach(function(x){s+=arrow(x[0],x[1],false)});
+ else Object.keys(pl).forEach(function(k){var bad=show&&!e.some(function(x){return x[0]==k&&okA(x[1],pl[k])});s+=arrow(k,pl[k],bad)});
+ if(show){var kv=view=="key";s+='<rect x="238" y="8" width="114" height="26" rx="13" fill="'+(kv?"#15803d":"#2563eb")+'"/><text x="295" y="26" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">'+(kv?"เฉลย":"คำตอบของฉัน")+'</text>'}
+ return s}
+function marks(){var s="";if(done)return s;Object.keys(pl).forEach(function(k){var m=pt(pl[k],128);s+='<circle cx="'+m[0]+'" cy="'+m[1]+'" r="7" fill="'+T[k].c+'"/><text x="'+m[0]+'" y="'+(m[1]+3.5)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" pointer-events="none">✕</text><circle data-k="'+k+'" cx="'+m[0]+'" cy="'+m[1]+'" r="16" fill="transparent" style="cursor:pointer"/>'});return s}
+function ropes(q){var s="";(q.rp||[]).forEach(function(a,k){var e=pt(a,120),m=pt(a,142);
+ s+='<line x1="180" y1="135" x2="'+e[0]+'" y2="'+e[1]+'" stroke="#a16207" stroke-width="5" stroke-linecap="round"/>';
+ s+=q.dot?'<circle cx="'+e[0]+'" cy="'+e[1]+'" r="7" fill="var(--ink)"/>':'<g transform="translate('+e[0]+' '+e[1]+') rotate('+(-a)+')"><rect x="0" y="-46" width="60" height="92" fill="#8b6f47" opacity=".35"/><line x1="0" y1="-46" x2="0" y2="46" stroke="var(--ink)" stroke-width="4"/></g>';
+ if(q.two)s+='<text x="'+m[0]+'" y="'+(m[1]+4)+'" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">เชือก '+(k+1)+'</text>'});return s}
+function geo(q){var b={},s="",s2="",r=36,ink='stroke="var(--ink)" stroke-width="3"',br='fill="#8b6f47" opacity=".35"',wall=function(x0,fy){return '<rect x="'+x0+'" y="'+(fy-190)+'" width="46" height="190" '+br+'/>'};
+ if(q.k=="ws"){var ox=40,oy=250,th=q.ia*Math.PI/180,c=Math.cos(th),n=Math.sin(th),bx,by;
+  if(q.wl=="v"){bx=r;by=r*(1+n)/c}else{bx=r*(c-n);by=r*(n+c)}
+  var lo=[ox+bx,oy-by],up=[ox+bx+2*r*c,oy-by-2*r*n];b=q.sw?{A:lo,B:up}:{A:up,B:lo};
+  s='<g transform="translate('+ox+' '+oy+') rotate(-'+q.ia+')"><rect x="0" y="0" width="400" height="140" fill="#9bd3ee" opacity=".55"/><line x1="0" y1="0" x2="400" y2="0" '+ink+'/>'+(q.wl=="p"?'<rect x="-46" y="-230" width="46" height="230" '+br+'/><line x1="0" y1="-230" x2="0" y2="0" stroke="var(--ink)" stroke-width="4"/>':'')+'</g>';
+  if(q.wl=="v")s+='<rect x="'+(ox-46)+'" y="'+(oy-230)+'" width="46" height="230" '+br+'/><line x1="'+ox+'" y1="'+(oy-230)+'" x2="'+ox+'" y2="'+oy+'" stroke="var(--ink)" stroke-width="4"/>'}
+ else if(q.k=="b2"){r=40;var fy=250;b={A:[110,fy-40],B:[158,fy-104]};
+  s='<line x1="24" y1="'+fy+'" x2="244" y2="'+fy+'" '+ink+'/>'+wall(24,fy)+wall(198,fy)+'<line x1="70" y1="'+(fy-190)+'" x2="70" y2="'+fy+'" '+ink+'/><line x1="198" y1="'+(fy-190)+'" x2="198" y2="'+fy+'" '+ink+'/>'}
+ else{var fy=250;b={A:[157.5,fy-79],B:[100,fy-36],C:[215,fy-36]};
+  s='<line x1="14" y1="'+fy+'" x2="300" y2="'+fy+'" '+ink+'/>';
+  if(q.wlb)s+=wall(18,fy)+wall(251,fy)+'<line x1="64" y1="'+(fy-190)+'" x2="64" y2="'+fy+'" '+ink+'/><line x1="251" y1="'+(fy-190)+'" x2="251" y2="'+fy+'" '+ink+'/>';
+  if(q.rope)s2='<line x1="100" y1="'+(fy-36)+'" x2="215" y2="'+(fy-36)+'" stroke="#a16207" stroke-width="4"/>'}
+ return {b:b,s:s,s2:s2,r:r}}
+function kc(show){return show&&view=="key"?' class="key"':''}
+function cdot(){return '<circle cx="180" cy="135" r="4" fill="var(--ink)"/>'}
+function mscene(q,show){var g=geo(q),v=vw(),ks=Object.keys(g.b),c=cen(g,v);
+ var s='<svg viewBox="0 0 360 270"'+kc(show)+'><g transform="translate('+(180-c[0])+' '+(135-c[1])+')">'+g.s;
+ ks.forEach(function(k){var p=g.b[k];s+='<circle class="'+(v=="all"||v==k?"bx":"bo")+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+g.r+'" stroke="var(--ink)" stroke-width="3"/><text x="'+(p[0]-g.r*.55)+'" y="'+(p[1]-g.r*.4)+'" font-size="13" font-weight="800" fill="var(--ink)">'+k+'</text>'});
+ return s+g.s2+'</g>'+(v=="all"?"":cdot())+marks()+'<g id="lay">'+layer(q,show)+'</g></svg>'}
+function scene(q,show){if(q.M)return mscene(q,show);
+ var s='<svg viewBox="0 0 360 270"'+kc(show)+'>'+ropes(q);
+ if(q.k=="inc")s+='<g transform="rotate(-'+q.ia+' 180 135)"><rect x="-120" y="175" width="600" height="80" fill="#9bd3ee" opacity=".55"/><line x1="-120" y1="175" x2="480" y2="175" stroke="var(--ink)" stroke-width="3"/><circle class="bx" cx="180" cy="135" r="40" stroke="var(--ink)" stroke-width="3"/></g>';
+ else s+='<rect class="bx" x="140" y="95" width="80" height="80" rx="4" stroke="var(--ink)" stroke-width="3"/>';
+ return s+cdot()+marks()+'<g id="lay">'+layer(q,show)+'</g></svg>'}
+function nm(k){return k=="T"&&Q[i].two?"แรงตึงเชือก 1 (T₁)":T[k].n}
+function upd(){document.getElementById("board").innerHTML=scene(Q[i],done);
+ document.querySelectorAll("#pal button").forEach(function(b){var k=b.dataset.k;b.classList.toggle("on",sel==k);b.style.background=sel==k?T[k].c:"";b.textContent=nm(k)+(pl[k]!==undefined?" ✓":"")});
+ if(sel)hint("เลือก "+T[sel].n+" แล้ว แตะหรือลากไปวางรอบวัตถุ")}
+function ang(ev){var sv=document.querySelector("#board svg");if(!sv)return null;var r=sv.getBoundingClientRect();
+ if(ev.clientX<r.left||ev.clientX>r.right||ev.clientY<r.top||ev.clientY>r.bottom)return null;
+ var s=r.width/360,dx=ev.clientX-(r.left+180*s),dy=ev.clientY-(r.top+135*s);if(Math.hypot(dx,dy)<18*s)return null;
+ return((Math.round(Math.atan2(-dy,dx)*36/Math.PI)*5)%360+360)%360}
+function startDrag(e,k){if(done||ro())return;e.preventDefault();var prev=pl[k],moved=false,g=document.createElement("div");
+ g.className="ghost";g.textContent=T[k].n;g.style.background=T[k].c;g.style.left=e.clientX+"px";g.style.top=e.clientY+"px";document.body.appendChild(g);sel=k;
+ function put(ev){var a=ang(ev);if(a===null){if(prev===undefined)delete pl[k];else pl[k]=prev}else pl[k]=a}
+ function mv(ev){moved=true;g.style.left=ev.clientX+"px";g.style.top=ev.clientY+"px";put(ev);upd()}
+ function up(ev){window.removeEventListener("pointermove",mv);window.removeEventListener("pointerup",up);window.removeEventListener("pointercancel",up);g.remove();if(moved){put(ev);sel=null}upd()}
+ window.addEventListener("pointermove",mv);window.addEventListener("pointerup",up);window.addEventListener("pointercancel",up)}
+function buildPal(){var q=Q[i],p=document.getElementById("pal");p.innerHTML="";
+ q.bt.forEach(function(k){if(k=="U"&&!q.two)return;var b=document.createElement("button");b.dataset.k=k;b.style.borderColor=T[k].c;
+  b.onpointerdown=function(e){startDrag(e,k)};b.onkeydown=function(e){if(e.key=="Enter"||e.key==" "){e.preventDefault();sel=k;upd()}};p.appendChild(b)});upd()}
+function vbar(q){var h=document.getElementById("vws");if(!h)return;h.innerHTML="";
+ ["all","A","B"].forEach(function(k,n){var b=document.createElement("button");b.textContent=q.vn[n];b.className=vw()==k?"on":"";
+  b.onclick=function(){S[i].vw=k;pl=S[i].pls[k];sel=null;vbar(q);buildPal();ctl();if(!done)hint(k=="all"?"ภาพรวม: ดูแรงที่ใส่ไว้ที่ A และ B ได้อย่างเดียว แก้ไขหรือวางแรงไม่ได้ ไปที่โฟกัส A หรือ B เพื่อวางแรง":HINT)};h.appendChild(b)})}
+function tot(){var s=0;for(var j in S)if(S[j].d)s+=S[j].p;return s}
+function showT(){var b=document.getElementById("tm"),f=document.getElementById("tfill"),bar=document.getElementById("tbar");if(!b||!S[i])return;var s=S[i],q=Q[i];
+ if(!timed||s.d||s.left===undefined){b.textContent=timed?"⏱ เปิด":"⏱ ปิด";bar.style.visibility="hidden";return}
+ bar.style.visibility="visible";b.textContent="⏱ "+Math.ceil(s.left)+" วิ";f.style.width=(100*s.left/q.tm)+"%";f.style.background=s.left<=3?"var(--bad)":"var(--ok)"}
+function startTimer(){var idx=i,t0=Date.now(),l0=S[idx].left;tmr=setInterval(function(){var l=l0-(Date.now()-t0)/1000;S[idx].left=Math.max(0,l);showT();if(l<=0){clearInterval(tmr);if(!done){S[idx].to=true;submit()}}},100)}
+function start(){S={};i=0;score=0;draw()}
+function draw(){clearInterval(tmr);score=tot();if(hearts()<=0){over();return}
+ if(i>=Q.length){var pct=Math.round(score/Q.length*100);
+  app.innerHTML='<div class="card" style="text-align:center"><h1>จบเกม</h1><p class="big">'+score.toFixed(1)+' / '+Q.length+'</p><p>'+defs()+'</p><p>ได้ '+pct+'% '+(pct>=80?'เยี่ยมมาก':pct>=50?'ดีแล้ว ลองเล่นอีกรอบเพื่อทบทวนข้อที่พลาด':'ลองอ่านเฉลยแต่ละข้อแล้วเล่นใหม่อีกครั้ง')+'</p><div class="row"><button class="btn alt" id="bk">‹ ย้อนกลับ</button><button class="btn" id="re">เล่นใหม่</button></div></div>';
+  document.getElementById("re").onclick=start;document.getElementById("bk").onclick=function(){i=Q.length-1;draw()};return}
+ var q=Q[i];if(!S[i])S[i]={pls:{all:{},A:{},B:{}},d:false,p:0,vw:q.M?"A":"all"};var st=S[i],was=st.d;pl=st.pls[st.vw];sel=null;done=false;
+ app.innerHTML='<div class="top"><span>ข้อ '+(i+1)+' / '+Q.length+'</span><span class="lv">'+q.lv+'</span><button class="lv tmb" id="tm"></button><span>คะแนน '+score.toFixed(1)+'</span></div><div class="tbar" id="tbar"><i id="tfill"></i></div><div class="card mon" id="mon"></div>'+
+ '<div class="card"><div class="tags"><span>'+q.tg+'</span><span>'+q.st+'</span></div><p class="q">'+q.t+'</p>'+(q.M?'<div class="vws" id="vws"></div>':'')+'<div id="board"></div>'+
+ '<p class="hint" id="hint">ลากปุ่มแรงจากด้านล่างขึ้นไปวางรอบวัตถุ ลูกศรจะชี้ไปตามตำแหน่งที่วาง (หรือแตะปุ่มแล้วแตะที่ภาพก็ได้) แตะวงกลม ✕ เพื่อยกเลิกลูกศร</p>'+
+ '<div class="pal" id="pal"></div><div class="row"><button class="btn alt" id="clr">ล้าง</button><button class="btn" id="go">ส่งคำตอบ</button></div></div><div id="res"></div><div class="row" style="justify-content:space-between"><button class="btn alt" id="pv">‹ ย้อนกลับ</button><button class="btn alt" id="nt">ข้ามไป ›</button></div>';
+ document.getElementById("clr").onclick=function(){S[i].pls[vw()]=pl={};sel=null;upd()};
+ document.getElementById("go").onclick=function(){submit()};
+ document.getElementById("board").onclick=function(e){if(done||ro())return;var k=e.target.getAttribute&&e.target.getAttribute("data-k");
+  if(k){delete pl[k];upd();hint("ยกเลิก "+T[k].n+" แล้ว");return}
+  if(!sel){hint("เลือกชนิดแรงด้านล่างก่อน แล้วแตะหรือลากไปวางรอบวัตถุ");return}
+  var a=ang(e);if(a===null)return;pl[sel]=a;sel=null;upd()};
+ var pv=document.getElementById("pv");pv.disabled=(i==0);pv.style.opacity=(i==0?0.4:1);
+ pv.onclick=function(){if(i>0){i--;draw();window.scrollTo(0,0)}};
+ document.getElementById("nt").onclick=function(){i++;draw();window.scrollTo(0,0)};
+ document.getElementById("tm").onclick=function(){timed=!timed;draw()};
+ vbar(q);buildPal();ctl();updMon();
+ if(!was&&timed){if(st.left===undefined)st.left=q.tm;startTimer()}
+ showT();if(was)submit()}
+function submit(){if(done)return;var q=Q[i],st=S[i],vs=q.M?["A","B"]:["all"],rows="",ps=0;done=true;
+ vs.forEach(function(v){var e=EX(q,v),p0=st.pls[v],h=0,x=0;if(q.M)rows+='<li><b>'+q.vn[v=="A"?1:2]+'</b></li>';
+  e.forEach(function(z){var o=p0[z[0]]!==undefined&&okA(z[1],p0[z[0]]);if(o)h++;rows+='<li>'+(o?'✓':'✗')+' '+T[z[0]].n+(o?'':(p0[z[0]]===undefined?' (ลืมใส่)':' (ทิศไม่ถูก)'))+'</li>'});
+  for(var k in p0)if(!e.some(function(z){return z[0]==k})){x++;rows+='<li>✗ '+T[k].n+' ไม่มีแรงนี้</li>'}
+  ps+=Math.max(0,h-x)/e.length});
+ var p=ps/vs.length,good=p>0.999;st.p=p;st.d=true;score=tot();clearInterval(tmr);showT();if(!st.shown){st.shown=true;updMon(p>=0.5?"atk":"hurt");if(hearts()<=0)setTimeout(function(){if(hearts()<=0)draw()},2100)}
+ ["go","clr","pal"].forEach(function(id){document.getElementById(id).classList.add("hide")});
+ view="key";var hn=document.getElementById("hint");hn.innerHTML='<button class="btn alt" id="tg" style="width:100%"></button>';var tg=document.getElementById("tg");
+ function sync(first){tg.textContent=view=="key"?"กำลังแสดง: เฉลย ✓ (แตะเพื่อดูคำตอบของฉัน)":"กำลังแสดง: คำตอบของฉัน เส้นประคือผิด (แตะเพื่อดูเฉลย)";
+  if(first){upd();return}var sv=document.querySelector("#board svg"),ly=document.getElementById("lay");if(!sv||!ly){upd();return}
+  ly.style.opacity=0;sv.classList.toggle("key",view=="key");setTimeout(function(){var l2=document.getElementById("lay");if(l2){l2.innerHTML=layer(Q[i],true);l2.style.opacity=1}},200)}
+ tg.onclick=function(){view=view=="key"?"mine":"key";sync()};sync(true);
+ document.getElementById("res").innerHTML='<div class="card fb '+(good?'good':'')+'"><b>'+(st.to?'หมดเวลา · ':'')+(good?'ถูกต้องทั้งหมด':'ได้ '+p.toFixed(2)+' คะแนน')+'</b><ul>'+rows+'</ul><p>'+q.why.replace(/\n/g,'<br>')+'</p><button class="btn" id="nx">'+(i==Q.length-1?'ดูผลรวม':'ข้อถัดไป')+'</button></div>';
+ document.getElementById("nx").onclick=function(){i++;draw();window.scrollTo(0,0)}}
+start();
+</script>
+</body>
+</html>
