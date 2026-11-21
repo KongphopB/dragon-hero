@@ -56,11 +56,10 @@
   function pickQuestion() {
     var stNum = DH.STAGES[g.stageIdx].stage;
     var pool = DH.QUESTIONS.filter(function (q) { return q.stage === stNum; });
-    var unused = pool.filter(function (q) { return g.usedQids.indexOf(q.id) < 0; });
-    if (!unused.length) unused = pool;
-    var q = unused[Math.floor(Math.random() * unused.length)];
-    g.usedQids.push(q.id);
-    return q;
+    var picked = DH.Adaptive.pick(pool, g.usedQids, g.mistakes);
+    g.usedQids.push(picked.q.id);
+    g.curFocus = picked.focusCode;
+    return picked.q;
   }
 
   function enterLobby() {
@@ -98,6 +97,8 @@
       usedQids: [],
       mistakes: {},
       topicStats: {},
+      qLog: [],
+      curFocus: null,
       accSum: 0,
       qTotal: 0,
       bossBonusHp: 0,
@@ -248,6 +249,13 @@
     g.topicStats[tp].total++;
     if (res.acc >= 0.999) g.topicStats[tp].ok++;
     res.codes.forEach(function (c) { g.mistakes[c] = (g.mistakes[c] || 0) + 1; });
+    g.qLog.push({
+      stage: DH.STAGES[g.stageIdx].stage,
+      acc: res.acc,
+      codes: res.codes.slice(),
+      focus: g.curFocus,
+      fixedFocus: !!g.curFocus && res.codes.indexOf(g.curFocus) < 0 && res.acc >= 0.5
+    });
 
     var cardEarned = null;
     if (g.streak > 0 && g.streak % 3 === 0 && g.cards.length < 3) {

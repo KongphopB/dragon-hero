@@ -24,6 +24,7 @@ dragon hero/
 │  │  └─ questions.js      # QUESTIONS stock (Types A, B, C, D cos/sin)
 │  ├─ core/                # Pure game logic (no DOM rendering)
 │  │  ├─ grading.js        # gradeAnswer(q, place) -> acc, outcome, codes, rows
+│  │  ├─ adaptive.js       # Picks next question weighted toward the player's frequent mistakes
 │  │  └─ game.js           # State machine, timers, tactic cards, damage, hearts
 │  ├─ ui/                  # DOM & SVG rendering only
 │  │  ├─ avatar.js         # Composes layered 48x48 PNG character parts (Option C)
@@ -47,3 +48,4 @@ dragon hero/
 5. **Keep `file://` compatibility:** Do not introduce `import`/`export` or `fetch()` for local files in the single-player game.
 6. **Backgrounds & monster sprites are WebP** (`assets/bg/*.webp`, `assets/monsters/*.webp`, quality 95) to keep the page light on phones. Convert new art to WebP before adding it; character parts stay 48×48 PNG.
 7. **Hosting:** the single-player game is a static site published with GitHub Pages from `main` (repo root). Every push to `main` updates the live link, so keep `main` playable.
+8. **Cache-busting:** every `css/` and `js/` link in `index.html` ends in `?v=N`. Bump `N` whenever you push a change, otherwise phones that already opened the GitHub Pages link may mix old and new files.

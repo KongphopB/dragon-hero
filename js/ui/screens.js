@@ -128,7 +128,83 @@
         '<span style="font-size:0.8rem;color:#cbd5e1;font-weight:700">HP ' + m.hp + ' / ' + m.maxHp + '</span>' +
       '</div>' +
       '<div class="hp-track"><div class="hp-fill" style="width:' + pct + '%"></div></div>' +
+      targetLine(DH.Game.getState()) +
     '</div>';
+  }
+
+  // Feature 3: how much damage is still needed to finish this monster, and how hard that is.
+  function targetLine(g) {
+    if (!g || !g.monster) return "";
+    var m = g.monster;
+    var left = Math.max(0, m.count - g.qInStage + (g.phase === "QUESTION" ? 1 : 0));
+    var cls, txt;
+    if (m.hp <= 0) {
+      cls = "ok";
+      txt = "🎯 โค่นได้แล้ว!";
+    } else if (left === 0) {
+      cls = "bad";
+      txt = "🎯 ไม่เหลือข้อให้โจมตีแล้ว (ขาดอีก " + m.hp + " ดาเมจ)";
+    } else {
+      var per = Math.ceil(m.hp / left);
+      var hint;
+      if (per <= m.baseDmg) { cls = "ok"; hint = "ตอบถูกครบก็พอ"; }
+      else if (per <= Math.round(m.baseDmg * 1.5)) { cls = "warn"; hint = "ต้องตอบถูกและเร็ว"; }
+      else { cls = "bad"; hint = "ต้องตอบถูกเร็ว + ใช้การ์ดดาบคู่"; }
+      txt = "🎯 " + (m.isBoss ? "เป้าโค่นมังกร: " : "") + "ขาดอีก " + m.hp + " ดาเมจ ใน " + left + " ข้อ (≈" + per + "/ข้อ · " + hint + ")";
+    }
+    return '<div class="target-line t-' + cls + '">' + txt + '</div>';
+  }
+
+  // Feature 5: how the player's mistakes changed between the first and second half of the run.
+  function progressHtml(g) {
+    var log = g.qLog || [];
+    if (!log.length) return "";
+    var html = '<h4 style="margin:14px 0 6px">📈 พัฒนาการระหว่างเล่น</h4>';
+
+    // Accuracy per stage
+    var byStage = {};
+    log.forEach(function (e) {
+      byStage[e.stage] = byStage[e.stage] || { sum: 0, n: 0 };
+      byStage[e.stage].sum += e.acc;
+      byStage[e.stage].n++;
+    });
+    html += Object.keys(byStage).map(function (s) {
+      var st = DH.STAGES[+s - 1];
+      var pct = Math.round(100 * byStage[s].sum / byStage[s].n);
+      var col = pct >= 80 ? "var(--ok)" : (pct >= 50 ? "var(--warn)" : "var(--bad)");
+      return '<div class="prog-row"><span class="prog-lbl">ด่าน ' + s + ' · ' + DH.esc((st && st.name || "").split(" (")[0]) + '</span>' +
+        '<span class="prog-track"><i style="width:' + pct + '%;background:' + col + '"></i></span><b class="prog-val">' + pct + '%</b></div>';
+    }).join("");
+
+    // Mistake trend: first half vs second half of the questions answered
+    if (log.length >= 4) {
+      var half = Math.floor(log.length / 2);
+      var early = log.slice(0, half), late = log.slice(half);
+      var count = function (arr, c) { return arr.filter(function (e) { return e.codes.indexOf(c) >= 0; }).length; };
+      var rows = Object.keys(g.mistakes).map(function (c) {
+        var e = count(early, c), l = count(late, c);
+        var re = e / early.length, rl = l / late.length;
+        var badge;
+        if (e > 0 && l === 0) badge = '<span class="trend t-ok">🌟 แก้ได้แล้ว</span>';
+        else if (e > 0 && rl < re) badge = '<span class="trend t-ok">✅ ดีขึ้น</span>';
+        else if (e === 0 && l > 0) badge = '<span class="trend t-warn">🆕 เริ่มพลาดช่วงหลัง</span>';
+        else badge = '<span class="trend t-bad">⚠️ ยังพลาดอยู่</span>';
+        var meta = DH.MISTAKE_META[c] || { label: c };
+        return { score: l * 10 + e, html: '<div class="trend-row"><span>' + DH.esc(meta.label) + '</span><span class="trend-nums">ครึ่งแรก ' + e + ' → ครึ่งหลัง ' + l + '</span>' + badge + '</div>' };
+      }).sort(function (a, b) { return b.score - a.score; });
+      if (rows.length) {
+        html += '<div style="font-size:0.8rem;color:var(--mute);margin:10px 0 4px">ข้อผิดพลาดครึ่งแรก (' + early.length + ' ข้อ) เทียบกับครึ่งหลัง (' + late.length + ' ข้อ) · โจทย์ช่วงหลังยากกว่า</div>' +
+          rows.map(function (r) { return r.html; }).join("");
+      }
+    }
+
+    // Questions the game picked to drill a weakness
+    var focus = log.filter(function (e) { return e.focus; });
+    if (focus.length) {
+      var fixed = focus.filter(function (e) { return e.fixedFocus; }).length;
+      html += '<div class="rpg-badge" style="margin-top:10px;display:block;text-align:center">🎯 โจทย์ที่เกมเลือกมาฝึกจุดอ่อน: ไม่พลาดซ้ำ ' + fixed + '/' + focus.length + ' ข้อ</div>';
+    }
+    return html;
   }
 
   function updateTimer() {
@@ -212,7 +288,7 @@
       var m = g.monster;
       body = '<div class="scene-stage">' +
         '<img class="scene-bg" src="' + DH.esc(m.bg) + '" style="' + bgFilterStyle(m) + '">' +
-        '<div class="mon-hud"><div class="mon-title">' + DH.esc(m.name) + '</div><div class="mon-sub">' + DH.esc(m.subtitle) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m.hp / m.maxHp) + '%"></div></div><div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + ' · ต้องสู้ ' + m.count + ' ข้อ' + (m.isBoss && g.bossBonusHp > 0 ? ' (เสริม +' + g.bossBonusHp + ' HP จากมอนหนี)' : '') + '</div></div>' +
+        '<div class="mon-hud"><div class="mon-title">' + DH.esc(m.name) + '</div><div class="mon-sub">' + DH.esc(m.subtitle) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m.hp / m.maxHp) + '%"></div></div><div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + ' · ต้องสู้ ' + m.count + ' ข้อ' + (m.isBoss && g.bossBonusHp > 0 ? ' (เสริม +' + g.bossBonusHp + ' HP จากมอนหนี)' : '') + '</div>' + targetLine(g) + '</div>' +
         '<div class="actors-row" style="bottom:8%">' +
           '<div class="actor-unit">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           monsterObjectHtml(m, "anim-mon-idle") +
@@ -244,6 +320,7 @@
             '<span style="font-weight:800;color:var(--gold);font-size:0.86rem">📜 ภารกิจโจมตี · ข้อ ' + g.qInStage + '/' + g.monster.count + '</span>' +
             '<div style="display:flex;gap:5px;flex-wrap:wrap"><span class="rpg-badge" style="font-size:0.75rem;padding:2px 8px">' + DH.esc(q.lv) + '</span><span class="rpg-badge" style="font-size:0.75rem;padding:2px 8px">' + DH.esc(q.tg) + '</span></div>' +
           '</div>' +
+          (g.curFocus && DH.MISTAKE_META[g.curFocus] ? '<div class="focus-badge">🎯 โจทย์ฝึกจุดอ่อน: ' + DH.esc(DH.MISTAKE_META[g.curFocus].label) + '</div>' : '') +
           '<p style="font-weight:700;margin:6px 0 10px">' + DH.esc(q.t) + '</p>' +
           '<div id="soloBoard"></div>' +
           '<button type="button" class="btn-pri" id="btnSubmit" style="width:100%;margin-top:10px">⚔️ ส่งคำตอบโจมตี!</button>' +
@@ -287,7 +364,7 @@
       var m2 = g.monster;
       body = '<div class="scene-stage">' +
         '<img class="scene-bg" src="' + DH.esc(m2.bg) + '" style="' + bgFilterStyle(m2) + '">' +
-        '<div class="mon-hud"><div class="mon-title">' + DH.esc(m2.name) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m2.hp / m2.maxHp) + '%"></div></div><div class="hp-text">HP ' + m2.hp + ' / ' + m2.maxHp + '</div></div>' +
+        '<div class="mon-hud"><div class="mon-title">' + DH.esc(m2.name) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m2.hp / m2.maxHp) + '%"></div></div><div class="hp-text">HP ' + m2.hp + ' / ' + m2.maxHp + '</div>' + targetLine(g) + '</div>' +
         (hitMon ? '<div class="boss-impact-zone"><div class="big-dmg-pop">-' + r2.dmg + '</div></div>' : '') +
         '<div class="actors-row" style="bottom:8%">' +
           '<div class="actor-unit ' + anim + '">' + pop + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
@@ -353,6 +430,7 @@
               '<span>' + DH.esc(DH.TOPIC_LABELS[tp] || tp) + '</span>' +
               '<b>' + st.ok + '/' + st.total + ' (' + Math.round(100 * st.ok / st.total) + '%)</b></div>';
           }).join("") +
+          progressHtml(g) +
           '<div style="display:flex;gap:8px;margin-top:14px">' +
             '<button type="button" class="btn-sec" id="btnRetryBoss" style="flex:1">🐉 ท้ามังกรอีกครั้ง</button>' +
             '<button type="button" class="btn-pri" id="btnRestart" style="flex:1">🔄 เล่นใหม่ตั้งแต่ต้น</button>' +

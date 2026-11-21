@@ -321,3 +321,26 @@
   .avatar-stack { width: 68px; height: 68px; }
   .actor-unit { width: 76px; }
 }
+
+/* Damage target line under monster HP (feature 3) */
+.target-line { font-size: 0.74rem; font-weight: 800; margin-top: 4px; padding: 3px 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.7); line-height: 1.35; }
+.target-line.t-ok { color: #4ade80; }
+.target-line.t-warn { color: #fbbf24; }
+.target-line.t-bad { color: #f87171; }
+
+/* Weakness-drill badge on the question card (feature 2) */
+.focus-badge { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 800; color: #e9d5ff; background: rgba(124, 58, 237, 0.25); border: 1px solid #a855f7; }
+
+/* Progress summary (feature 5) */
+.prog-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; padding: 3px 0; }
+.prog-lbl { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-track { flex: 1; height: 10px; border-radius: 6px; background: var(--panel2); overflow: hidden; }
+.prog-track i { display: block; height: 100%; }
+.prog-val { flex: 0 0 40px; text-align: right; }
+.trend-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.trend-row > span:first-child { flex: 1 1 100%; font-weight: 700; }
+.trend-nums { color: var(--mute); }
+.trend { margin-left: auto; font-weight: 800; }
+.trend.t-ok { color: #4ade80; }
+.trend.t-warn { color: #fbbf24; }
+.trend.t-bad { color: #f87171; }
