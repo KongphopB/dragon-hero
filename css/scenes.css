@@ -89,7 +89,8 @@
 /* Actors Row (Hero Left vs Monster Object Right) */
 .actors-row {
   position: absolute;
-  bottom: 8%;
+  top: 0;
+  bottom: 0;
   left: 4%;
   right: 4%;
   display: flex;
@@ -104,6 +105,7 @@
   align-items: center;
   width: 96px;
   position: relative;
+  bottom: 13%;
 }
 .actor-tag {
   background: rgba(15, 23, 42, 0.88);
@@ -148,6 +150,7 @@
 /* Independent Monster Sprite Object */
 .monster-slot {
   position: relative;
+  bottom: 16%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -155,6 +158,23 @@
   pointer-events: none;
   margin-right: 4%;
 }
+
+/* Per-stage terrain ground landing heights (Hero boots & Monster feet rest on painted ground!) */
+.stage-slime .actor-unit  { bottom: 16%; }
+.stage-slime .monster-slot { bottom: 17%; margin-right: 5%; }
+
+.stage-goblin .actor-unit  { bottom: 16%; }
+.stage-goblin .monster-slot { bottom: 16%; margin-right: 4%; }
+
+.stage-fenrir .actor-unit  { bottom: 16%; }
+.stage-fenrir .monster-slot { bottom: 20%; margin-right: 5%; }
+
+.stage-orc .actor-unit  { bottom: 16%; }
+.stage-orc .monster-slot { bottom: 15%; margin-right: 4%; }
+
+.stage-dragon .actor-unit  { bottom: 14%; }
+.stage-dragon .monster-slot { bottom: 37%; margin-right: -1%; }
+.stage-dragon .boss-impact-zone { bottom: 58%; right: 14%; }
 
 /* Animations */
 @keyframes craneCameraUp {

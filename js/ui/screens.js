@@ -15,21 +15,30 @@
     return "";
   }
 
-  // Monster = action wrapper (enter / lunge / hurt / dead) > rig with its own idle loop > sprite cut-outs.
+  // Monster = action wrapper (enter / lunge / hurt / dead) > rig with its own idle loop > overlapping layered parts.
   function monsterObjectHtml(m, animClass, extraStyle) {
-    var rig = (DH.MONSTER_RIGS && DH.MONSTER_RIGS[m.id]) || { base: "none", parts: [], fx: [] };
-    var src = DH.esc(m.sprite);
-    var parts = rig.parts.map(function (p) {
-      return '<img class="mon-part part-' + p.name + '" src="' + src + '" alt="" style="clip-path:' + p.clip + ';transform-origin:' + p.pivot + '">';
+    var rig = (DH.MONSTER_RIGS && DH.MONSTER_RIGS[m.id]) || { parts: [], fx: [] };
+    var fallbackSrc = DH.esc(m.sprite);
+    var baseSrc = rig.baseSrc ? DH.esc(rig.baseSrc) : fallbackSrc;
+    var baseClip = rig.base ? (' style="clip-path:' + rig.base + '"') : "";
+    var parts = (rig.parts || []).map(function (p) {
+      var pSrc = p.src ? DH.esc(p.src) : fallbackSrc;
+      var st = "transform-origin:" + (p.pivot || "50% 50%") + ";z-index:" + (p.z || 3) + (p.clip ? ";clip-path:" + p.clip : "");
+      return '<img class="mon-part part-' + p.name + '" src="' + pSrc + '" alt="" style="' + st + '">';
     }).join("");
-    var fx = rig.fx.map(function (f) {
+    var fx = (rig.fx || []).map(function (f) {
       return '<span class="mon-fx fx-' + f.name + '" style="left:' + f.left + ';top:' + f.top + '"></span>';
     }).join("");
-    return '<div class="monster-slot ' + (animClass || "anim-mon-idle") + '" style="' + (extraStyle || "") + '">' +
+    var atkSeq = rig.atkSeq || [];
+    var seqTag = atkSeq.length ? (" seq-" + atkSeq.length + "f") : "";
+    var atkHtml = atkSeq.map(function (src, idx) {
+      return '<img class="mon-atk-frame atk-f-' + idx + '" src="' + DH.esc(src) + '?v=9" alt="">';
+    }).join("");
+    return '<div class="monster-slot mon-' + DH.esc(m.id) + seqTag + ' ' + (animClass || "anim-mon-idle") + '" style="' + (extraStyle || "") + '">' +
       '<div class="mon-act">' +
         '<div class="monster-obj mon-rig rig-' + DH.esc(m.id) + (m.isBoss ? " is-boss phase-" + (m.phase || 1) : "") + '" role="img" aria-label="' + DH.esc(m.name) + '">' +
-          '<img class="mon-base" src="' + src + '" alt="" style="clip-path:' + rig.base + '">' +
-          parts + fx +
+          '<div class="mon-idle-layer"><img class="mon-base" src="' + baseSrc + '" alt=""' + baseClip + '>' + parts + fx + '</div>' +
+          atkHtml +
         '</div>' +
       '</div>' +
       '<div class="monster-shadow shadow-' + DH.esc(m.id) + '"></div>' +
@@ -392,10 +401,10 @@
       '</div>';
     } else if (g.phase === "ENCOUNTER") {
       var m = g.monster;
-      body = '<div class="scene-stage">' +
+      body = '<div class="scene-stage stage-' + DH.esc(m.id) + '">' +
         '<img class="scene-bg" src="' + DH.esc(m.bg) + '" style="' + bgFilterStyle(m) + '">' +
         '<div class="mon-hud"><div class="mon-title">' + DH.esc(m.name) + '</div><div class="mon-sub">' + DH.esc(m.subtitle) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m.hp / m.maxHp) + '%"></div></div><div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + ' · ต้องสู้ ' + m.count + ' ข้อ' + (m.isBoss && g.bossBonusHp > 0 ? ' (เสริม +' + g.bossBonusHp + ' HP จากมอนหนี)' : '') + '</div>' + targetLine(g) + '</div>' +
-        '<div class="actors-row" style="bottom:8%">' +
+        '<div class="actors-row">' +
           '<div class="actor-unit">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           monsterObjectHtml(m, "anim-mon-enter") +
         '</div>' +
@@ -469,19 +478,24 @@
       var pop = hitMon
         ? '<div class="actor-dmg ok">+' + r2.dmg + ' ⚔️</div>'
         : (shielded ? '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>' : '<div class="actor-dmg bad">💥 -1 ❤️</div>');
-      var sparks = '<span class="spark"></span><span class="spark"></span><span class="spark"></span><span class="spark"></span><span class="spark"></span><span class="spark"></span>';
+      var sparks = '<span class="flash"></span><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i>';
       // Hit effects land where the blow connects: on the monster when we hit, on the hero when it hits us.
-      var impact = hitMon
-        ? '<div class="impact-fx on-mon fx-' + atkStyle + '"><span class="slash"></span><span class="ring"></span>' + sparks + '</div>'
-        : '<div class="impact-fx on-hero' + (shielded ? ' fx-block' : '') + '"><span class="ring"></span>' + sparks + '</div>';
       var m2 = g.monster;
-      body = '<div class="scene-stage ' + (hitMon || !shielded ? "shake-hit" : "") + '">' +
+      var isDragonAtk = !hitMon && m2.id === "dragon";
+      var monSlash = !hitMon && !shielded && (m2.id === "goblin" || m2.id === "fenrir");
+      var monSlam = !hitMon && !shielded && (m2.id === "slime" || m2.id === "orc");
+      var dragonBreathFx = '';
+      var impact = hitMon
+        ? '<div class="impact-fx on-mon fx-' + atkStyle + '"><span class="slash"></span><span class="slash slash-2"></span><span class="ring"></span>' + sparks + '</div>'
+        : '<div class="impact-fx on-hero' + (shielded ? ' fx-block' : '') + (monSlash ? ' fx-mon-slash' : '') + (monSlam ? ' fx-slam' : '') + (isDragonAtk && !shielded ? ' fx-dragon-fire' : '') + '">' + (monSlash ? '<span class="slash"></span><span class="slash slash-2"></span>' : '') + '<span class="ring"></span><span class="ring ring-2"></span>' + sparks + '</div>';
+      body = '<div class="scene-stage stage-' + DH.esc(m2.id) + ' ' + (hitMon ? "shake-hero-hit" : (!shielded ? "shake-hit" : "")) + '">' +
         '<img class="scene-bg" src="' + DH.esc(m2.bg) + '" style="' + bgFilterStyle(m2) + '">' +
         '<div class="mon-hud"><div class="mon-title">' + DH.esc(m2.name) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m2.hp / m2.maxHp) + '%"></div></div><div class="hp-text">HP ' + m2.hp + ' / ' + m2.maxHp + '</div>' + targetLine(g) + '</div>' +
         (hitMon ? '<div class="boss-impact-zone"><div class="big-dmg-pop">-' + r2.dmg + '</div></div>' : '') +
         impact +
-        '<div class="actors-row" style="bottom:8%">' +
+        '<div class="actors-row">' +
           (hitMon && atkStyle === "ranged" ? '<span class="proj proj-' + DH.esc(charDraft.job) + '"></span>' : '') +
+          dragonBreathFx +
           '<div class="actor-unit ' + anim + '">' + pop + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           monsterObjectHtml(m2, monAnim) +
         '</div>' +
@@ -493,9 +507,9 @@
     } else if (g.phase === "MON_DEFEAT" || g.phase === "MON_ESCAPE") {
       var dead = g.phase === "MON_DEFEAT";
       var m3 = g.monster;
-      body = '<div class="scene-stage">' +
+      body = '<div class="scene-stage stage-' + DH.esc(m3.id) + '">' +
         '<img class="scene-bg" src="' + DH.esc(m3.bg) + '" style="' + (dead ? "filter:brightness(0.75)" : "") + '">' +
-        '<div class="actors-row" style="bottom:8%">' +
+        '<div class="actors-row">' +
           '<div class="actor-unit ' + (dead ? "anim-walk" : "") + '">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           (dead ? monsterObjectHtml(m3, "anim-mon-dead") : monsterObjectHtml(m3, "anim-mon-flee")) +
         '</div>' +
@@ -507,10 +521,10 @@
     } else if (g.phase === "VICTORY" || g.phase === "DEFEAT") {
       var win = g.phase === "VICTORY";
       var m4 = g.monster;
-      body = '<div class="scene-stage">' +
+      body = '<div class="scene-stage stage-dragon">' +
         '<img class="scene-bg" src="assets/bg/bg_dragon.webp" style="' + (win ? "filter:brightness(0.95)" : "filter:brightness(0.65) saturate(1.3)") + '">' +
         (!win ? '<div class="' + (g.defeatFate === "eat" ? "dragon-eat-overlay" : "dragon-fire-overlay") + '"></div>' : '') +
-        '<div class="actors-row" style="bottom:8%">' +
+        '<div class="actors-row">' +
           '<div class="actor-unit ' + (win ? "anim-walk" : "anim-hurt") + '">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           monsterObjectHtml(m4, win ? "anim-mon-dead" : "anim-mon-lunge") +
         '</div>' +
@@ -559,12 +573,38 @@
 
   // Melee dashes and monster lunges should close the actual gap between the two, whatever the screen width.
   function setDashDistance() {
+    var stage = document.querySelector(".scene-stage");
     var row = document.querySelector(".actors-row");
     var hero = row && row.querySelector(".avatar-stack");
     var mon = row && row.querySelector(".monster-obj");
-    if (!hero || !mon) return;
-    var gap = mon.getBoundingClientRect().left - hero.getBoundingClientRect().right;
-    row.style.setProperty("--dash", Math.max(30, Math.round(gap + 12)) + "px");
+    if (!hero || !mon || !stage) return;
+    var stR = stage.getBoundingClientRect();
+    var rowR = row.getBoundingClientRect();
+    var hR = hero.getBoundingClientRect();
+    var mR = mon.getBoundingClientRect();
+    var gap = mR.left - hR.right;
+    var dashY = Math.round((mR.top + mR.height * 0.55) - (hR.top + hR.height * 0.50));
+    stage.style.setProperty("--dash", Math.max(30, Math.round(gap + 12)) + "px");
+    stage.style.setProperty("--dash-y", dashY + "px");
+    stage.style.setProperty("--hero-fx-x", Math.round(hR.left + hR.width * 0.55 - stR.left) + "px");
+    stage.style.setProperty("--hero-fx-y", Math.round(hR.top + hR.height * 0.50 - stR.top) + "px");
+    stage.style.setProperty("--mon-fx-x", Math.round(mR.left + mR.width * 0.42 - stR.left) + "px");
+    stage.style.setProperty("--mon-fx-y", Math.round(mR.top + mR.height * 0.50 - stR.top) + "px");
+
+    var mouth = mon.querySelector(".fx-fire-glow");
+    var mPt = mouth ? mouth.getBoundingClientRect() : null;
+    var mx = mPt ? (mPt.left + mPt.width / 2 - rowR.left - 8) : (mR.left + mR.width * 0.16 - rowR.left);
+    var my = mPt ? (mPt.top + mPt.height / 2 - rowR.top + 4) : (mR.top + mR.height * 0.70 - rowR.top);
+    var hx = hR.left + hR.width * 0.52 - rowR.left;
+    var hy = hR.top + hR.height * 0.50 - rowR.top;
+    var dx = hx - mx;
+    var dy = hy - my;
+    row.style.setProperty("--mouth-x", Math.round(mx) + "px");
+    row.style.setProperty("--mouth-y", Math.round(my) + "px");
+    row.style.setProperty("--fire-dx", Math.round(dx) + "px");
+    row.style.setProperty("--fire-dy", Math.round(dy) + "px");
+    row.style.setProperty("--fire-dist", Math.round(Math.hypot(dx, dy)) + "px");
+    row.style.setProperty("--fire-ang", (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1) + "deg");
   }
 
   function bindPhase(g) {
@@ -601,7 +641,10 @@
       setDashDistance();
     }
     else if ((g.phase === "MON_DEFEAT" || g.phase === "MON_ESCAPE") && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.nextStage;
-    else if ((g.phase === "VICTORY" || g.phase === "DEFEAT") && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.goSummary;
+    else if ((g.phase === "VICTORY" || g.phase === "DEFEAT") && (el = document.getElementById("btnNext"))) {
+      el.onclick = DH.Game.goSummary;
+      if (g.phase === "DEFEAT") setDashDistance();
+    }
     else if (g.phase === "SUMMARY") {
       document.getElementById("btnRetryBoss").onclick = function () { DH.Game.newRun(DH.STAGES.length - 1); };
       document.getElementById("btnRestart").onclick = DH.Game.resetToCreate;
@@ -611,6 +654,8 @@
 
   DH.Screens = {
     render: render,
-    updateTimer: updateTimer
+    updateTimer: updateTimer,
+    monsterHtml: monsterObjectHtml,
+    setDashDistance: setDashDistance
   };
 })(window);

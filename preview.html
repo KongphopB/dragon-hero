@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dragon Hero: Preview &amp; Debug Lab</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/theme.css?v=5">
+  <link rel="stylesheet" href="css/scenes.css?v=5">
+  <link rel="stylesheet" href="css/animation-rig.css?v=5">
+  <style>
+    .dbg-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .dbg-tab { flex: 1; min-width: 110px; }
+    .dbg-tab.on { background: var(--gold); color: #0f172a; border-color: var(--gold); }
+    .dbg-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .dbg-btn {
+      font: inherit; font-weight: 700; font-size: 0.82rem;
+      padding: 6px 10px; border-radius: 9px; border: 1px solid #475569;
+      background: #1e293b; color: #f8fafc; cursor: pointer;
+    }
+    .dbg-btn.on { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+    .dbg-sel {
+      width: 100%; font: inherit; font-weight: 700; padding: 8px 10px;
+      border-radius: 10px; border: 2px solid #334155; background: #0f172a; color: #f8fafc;
+    }
+    .slow-mo .mon-act, .slow-mo .mon-idle-layer, .slow-mo .mon-atk-frame, .slow-mo .avatar-stack, .slow-mo .monster-shadow { animation-duration: 2.8s !important; }
+    .slow-mo .anim-hurt .avatar-stack, .slow-mo .anim-mon-hurt .mon-act, .slow-mo .impact-fx *, .slow-mo.shake-hit, .slow-mo.shake-hero-hit { animation-delay: 1.32s !important; animation-duration: 1.1s !important; }
+  </style>
+</head>
+<body>
+  <div class="solo-shell">
+    <div class="hud-strip">
+      <span>🛠️ <b>Debug Lab</b> (เช็กทีละส่วน)</span>
+      <a href="index.html" style="color:var(--gold);text-decoration:none;font-weight:800">◀ กลับหน้าเกมจริง</a>
+    </div>
+
+    <div class="dbg-bar">
+      <button type="button" class="btn-sec dbg-tab on" data-tab="battle">🎬 มอน &amp; ท่าโจมตี</button>
+      <button type="button" class="btn-sec dbg-tab" data-tab="fbd">📐 โจทย์ FBD (36 ข้อ)</button>
+      <button type="button" class="btn-sec dbg-tab" data-tab="cutscene">🏰 คัตซีน</button>
+    </div>
+
+    <div id="tabContent"></div>
+  </div>
+
+  <script src="js/data/characters.js?v=4"></script>
+  <script src="js/data/mistakes.js?v=4"></script>
+  <script src="js/data/stages.js?v=4"></script>
+  <script src="js/data/monster-rigs.js?v=7"></script>
+  <script src="js/data/questions.js?v=4"></script>
+  <script src="js/sfx.js?v=4"></script>
+  <script src="js/core/grading.js?v=4"></script>
+  <script src="js/core/adaptive.js?v=4"></script>
+  <script src="js/core/game.js?v=4"></script>
+  <script src="js/ui/avatar.js?v=4"></script>
+  <script src="js/ui/fbd-board.js?v=4"></script>
+  <script src="js/ui/screens.js?v=9"></script>
+  <script>
+    (function () {
+      var tab = "battle";
+      var bState = { stageIdx: 4, bossPhase: 1, job: "warrior", action: "monAtk", slow: false };
+      var fbdIdx = 0;
+      var fbdShowRev = false;
+      var fbdCtrl = null;
+      var lastPlace = { all: {}, A: {}, B: {} };
+      var cutMode = "crane";
+
+      function getSavedChar() {
+        var c = DH.Game.getChar();
+        return { name: c.name || "ผู้ทดสอบ", look: c.look || { skin: 0, hair: 1, hairColor: 0, outfit: 0, hat: 0 }, job: bState.job };
+      }
+
+      function renderBattleTab() {
+        var st = DH.STAGES[bState.stageIdx];
+        var m = {
+          id: st.monsterId,
+          name: st.name,
+          subtitle: st.subtitle,
+          bg: st.bg,
+          sprite: st.sprite,
+          hp: st.isBoss && bState.action === "monDead" ? 0 : 300,
+          maxHp: 300,
+          isBoss: !!st.isBoss,
+          phase: bState.bossPhase,
+          count: st.count
+        };
+        var ch = getSavedChar();
+        var atkStyle = DH.Avatar.attackStyle(ch.job);
+        var act = bState.action;
+
+        var heroAnim = "";
+        var monAnim = "anim-mon-idle";
+        var fxHtml = "";
+        var extraProj = "";
+        var stageShake = "";
+        var pop = "";
+        var sparks = '<span class="flash"></span><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i>';
+
+        if (act === "enter") {
+          monAnim = "anim-mon-enter";
+        } else if (act === "heroAtk") {
+          heroAnim = "anim-atk atk-" + atkStyle;
+          monAnim = "anim-mon-hurt";
+          stageShake = "shake-hero-hit";
+          pop = '<div class="actor-dmg ok">+180 ⚔️</div>';
+          fxHtml = '<div class="impact-fx on-mon fx-' + atkStyle + '"><span class="slash"></span><span class="slash slash-2"></span><span class="ring"></span>' + sparks + '</div>';
+          if (atkStyle === "ranged") extraProj = '<span class="proj proj-' + ch.job + '"></span>';
+        } else if (act === "monAtk" || act === "defeat") {
+          heroAnim = "anim-hurt";
+          monAnim = "anim-mon-lunge";
+          stageShake = "shake-hit";
+          pop = '<div class="actor-dmg bad">💥 -1 ❤️</div>';
+          var isDragon = m.id === "dragon";
+          var monSlash = (m.id === "goblin" || m.id === "fenrir");
+          var monSlam = (m.id === "slime" || m.id === "orc");
+          fxHtml = '<div class="impact-fx on-hero' + (monSlash ? ' fx-mon-slash' : '') + (monSlam ? ' fx-slam' : '') + (isDragon ? ' fx-dragon-fire' : '') + '">' + (monSlash ? '<span class="slash"></span><span class="slash slash-2"></span>' : '') + '<span class="ring"></span><span class="ring ring-2"></span>' + sparks + '</div>';
+        } else if (act === "block") {
+          heroAnim = "anim-block";
+          monAnim = "anim-mon-lunge";
+          pop = '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>';
+          fxHtml = '<div class="impact-fx on-hero fx-block"><span class="ring"></span><span class="ring ring-2"></span>' + sparks + '</div>';
+        } else if (act === "monDead") {
+          monAnim = "anim-mon-dead";
+        } else if (act === "monFlee") {
+          monAnim = "anim-mon-flee";
+        }
+
+        var monBtns = DH.STAGES.map(function (s, idx) {
+          return '<button type="button" class="dbg-btn ' + (bState.stageIdx === idx ? 'on' : '') + '" data-st="' + idx + '">' + (idx + 1) + '. ' + s.monsterId + '</button>';
+        }).join("");
+        var jobBtns = Object.keys(DH.JOBS).map(function (jk) {
+          return '<button type="button" class="dbg-btn ' + (bState.job === jk ? 'on' : '') + '" data-jb="' + jk + '">' + DH.JOBS[jk].icon + ' ' + DH.JOBS[jk].name + '</button>';
+        }).join("");
+        var actList = [
+          ["idle", "😌 Idle (ยืนนิ่ง)"],
+          ["enter", "🎬 มอนโผล่"],
+          ["heroAtk", "⚔️ ฮีโร่โจมตี"],
+          ["monAtk", "💥 มอนโจมตี"],
+          ["block", "🛡️ ฮีโร่บล็อก"],
+          ["monDead", "💀 มอนตาย"],
+          ["monFlee", "💨 มอนหนี"]
+        ];
+        var actBtns = actList.map(function (pair) {
+          return '<button type="button" class="dbg-btn ' + (bState.action === pair[0] ? 'on' : '') + '" data-act="' + pair[0] + '">' + pair[1] + '</button>';
+        }).join("");
+
+        var box = document.getElementById("tabContent");
+        box.innerHTML =
+          '<div class="scene-stage stage-' + DH.esc(m.id) + ' ' + stageShake + (bState.slow ? ' slow-mo' : '') + '">' +
+            '<img class="scene-bg" src="' + DH.esc(m.bg) + '">' +
+            (act === "defeat" ? '<div class="dragon-fire-overlay"></div>' : '') +
+            fxHtml +
+            '<div class="actors-row">' +
+              extraProj +
+              '<div class="actor-unit ' + heroAnim + '">' + pop + DH.Avatar.render(ch.look, ch.job) + '<div class="actor-tag">' + DH.esc(ch.name) + '</div></div>' +
+              DH.Screens.monsterHtml(m, monAnim) +
+            '</div>' +
+          '</div>' +
+          '<div class="rpg-card" style="margin-top:10px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">' +
+              '<b>เลือกมอนสเตอร์</b>' +
+              '<div style="display:flex;gap:6px">' +
+                '<button type="button" class="dbg-btn ' + (bState.slow ? 'on' : '') + '" id="btnSlow">🐢 สโลว์</button>' +
+                '<button type="button" class="btn-pri" id="btnReplay" style="padding:6px 12px;font-size:0.85rem">🔄 รีเพลย์</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="dbg-grid">' + monBtns + '</div>' +
+            (st.isBoss ? '<div class="dbg-grid">เฟสมังกร: ' + [1,2,3].map(function(p){ return '<button type="button" class="dbg-btn ' + (bState.bossPhase===p?'on':'') + '" data-ph="' + p + '">เฟส ' + p + '</button>'; }).join('') + '</div>' : '') +
+            '<b>เลือกอาชีพฮีโร่</b><div class="dbg-grid">' + jobBtns + '</div>' +
+            '<b>เล่นอนิเมชั่น</b><div class="dbg-grid">' + actBtns + '</div>' +
+          '</div>';
+
+        DH.Screens.setDashDistance();
+        box.querySelectorAll("[data-st]").forEach(function (b) { b.onclick = function () { bState.stageIdx = +b.dataset.st; render(); }; });
+        box.querySelectorAll("[data-jb]").forEach(function (b) { b.onclick = function () { bState.job = b.dataset.jb; render(); }; });
+        box.querySelectorAll("[data-act]").forEach(function (b) { b.onclick = function () { bState.action = b.dataset.act; render(); }; });
+        box.querySelectorAll("[data-ph]").forEach(function (b) { b.onclick = function () { bState.bossPhase = +b.dataset.ph; render(); }; });
+        document.getElementById("btnReplay").onclick = render;
+        document.getElementById("btnSlow").onclick = function () { bState.slow = !bState.slow; render(); };
+      }
+
+      function renderFbdTab() {
+        var q = DH.QUESTIONS[fbdIdx] || DH.QUESTIONS[0];
+        var st = DH.STAGES[(q.stage || 1) - 1] || DH.STAGES[0];
+        var opts = DH.QUESTIONS.map(function (qq, idx) {
+          return '<option value="' + idx + '"' + (idx === fbdIdx ? ' selected' : '') + '>ด่าน ' + qq.stage + ' · ' + DH.esc(qq.id) + ' — ' + DH.esc(qq.tg) + '</option>';
+        }).join("");
+        var gradeHtml = "";
+        if (fbdShowRev) {
+          var res = DH.Grading.gradeAnswer(q, lastPlace);
+          gradeHtml = '<div style="margin-top:8px;padding:8px;border-radius:10px;background:#0f172a;border:1px solid #334155">' +
+            '<b>ผลตรวจ: ' + Math.round(res.acc * 100) + '% (' + res.outcome + ')</b>' +
+            '<div style="font-size:0.82rem;color:#cbd5e1;margin-top:4px">' + DH.esc(q.why) + '</div>' +
+          '</div>';
+        }
+        var box = document.getElementById("tabContent");
+        box.innerHTML =
+          '<div class="rpg-card rpg-panel-quest">' +
+            '<select class="dbg-sel" id="qSelect">' + opts + '</select>' +
+            '<p style="font-weight:700;margin:8px 0">' + DH.esc(q.t) + '</p>' +
+            '<div id="dbgBoard"></div>' +
+            '<div style="display:flex;gap:8px;margin-top:10px">' +
+              '<button type="button" class="btn-sec" id="btnPrevQ" style="flex:0 0 auto">◀ ก่อนหน้า</button>' +
+              '<button type="button" class="btn-pri" id="btnToggleRev" style="flex:1">' + (fbdShowRev ? '✏️ กลับโหมดวางแรง' : '✅ ตรวจคำตอบ &amp; ดูเฉลย') + '</button>' +
+              '<button type="button" class="btn-sec" id="btnNextQ" style="flex:0 0 auto">ถัดไป ▶</button>' +
+            '</div>' +
+            gradeHtml +
+          '</div>';
+
+        document.getElementById("qSelect").onchange = function (e) {
+          fbdIdx = +e.target.value; fbdShowRev = false; lastPlace = { all: {}, A: {}, B: {} }; render();
+        };
+        document.getElementById("btnPrevQ").onclick = function () {
+          fbdIdx = (fbdIdx - 1 + DH.QUESTIONS.length) % DH.QUESTIONS.length; fbdShowRev = false; lastPlace = { all: {}, A: {}, B: {} }; render();
+        };
+        document.getElementById("btnNextQ").onclick = function () {
+          fbdIdx = (fbdIdx + 1) % DH.QUESTIONS.length; fbdShowRev = false; lastPlace = { all: {}, A: {}, B: {} }; render();
+        };
+        document.getElementById("btnToggleRev").onclick = function () {
+          if (!fbdShowRev && fbdCtrl) lastPlace = fbdCtrl.getState();
+          fbdShowRev = !fbdShowRev; render();
+        };
+        fbdCtrl = FBD.mount(document.getElementById("dbgBoard"), q, {
+          biome: st.monsterId,
+          readOnly: fbdShowRev,
+          initialState: lastPlace,
+          revealData: fbdShowRev ? { revealMode: "key" } : null,
+          onChange: function (s) { lastPlace = s; }
+        });
+      }
+
+      function renderCutsceneTab() {
+        var ch = getSavedChar();
+        var box = document.getElementById("tabContent");
+        if (cutMode === "plaza") {
+          box.innerHTML =
+            '<div class="scene-stage">' +
+              '<img class="scene-bg" src="assets/bg/bg_plaza.webp">' +
+              '<div class="scene-scrim"></div>' +
+              '<div class="actors-row" style="justify-content:center;bottom:10%">' +
+                '<div class="actor-unit anim-patrol"><div class="walk-flip">' + DH.Avatar.render(ch.look, ch.job, { walking: true }) + '</div><div class="actor-tag">' + DH.esc(ch.name) + '</div></div>' +
+              '</div>' +
+            '</div>';
+        } else {
+          box.innerHTML =
+            '<div class="scene-stage">' +
+              '<div class="crane-world">' +
+                '<img class="crane-bg" src="assets/bg/bg_depart_crane.webp">' +
+                '<div class="crane-walker">' + DH.Avatar.render(ch.look, ch.job, { walking: true, backView: true }) + '</div>' +
+              '</div>' +
+              '<div class="scene-scrim"></div>' +
+            '</div>';
+        }
+        box.innerHTML +=
+          '<div class="rpg-card" style="margin-top:10px;display:flex;gap:8px">' +
+            '<button type="button" class="btn-sec ' + (cutMode === 'plaza' ? 'on' : '') + '" id="btnPlaza" style="flex:1">⛲ น้ำพุกลางเมือง</button>' +
+            '<button type="button" class="btn-pri" id="btnCrane" style="flex:1">🚪 เดินออกประตูเมือง (รีเพลย์)</button>' +
+          '</div>';
+        document.getElementById("btnPlaza").onclick = function () { cutMode = "plaza"; render(); };
+        document.getElementById("btnCrane").onclick = function () { cutMode = "crane"; render(); };
+      }
+
+      function render() {
+        document.querySelectorAll(".dbg-tab").forEach(function (b) {
+          b.classList.toggle("on", b.dataset.tab === tab);
+        });
+        if (tab === "battle") renderBattleTab();
+        else if (tab === "fbd") renderFbdTab();
+        else renderCutsceneTab();
+      }
+
+      document.querySelectorAll(".dbg-tab").forEach(function (b) {
+        b.onclick = function () { tab = b.dataset.tab; render(); };
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>

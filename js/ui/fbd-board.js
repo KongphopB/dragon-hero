@@ -377,7 +377,15 @@
         s += renderWallSvg(18, fy - 190, 46, 190, tm, 64) +
           renderWallSvg(251, fy - 190, 46, 190, tm, 251);
       }
-      if (q.rope) s2 = '<line x1="100" y1="' + (fy - 36) + '" x2="215" y1="' + (fy - 36) + '" stroke="#f59e0b" stroke-width="4.5" stroke-linecap="round"/>';
+      if (q.rope) {
+        var ry = fy - 36;
+        s2 = '<line x1="100" y1="' + ry + '" x2="215" y2="' + ry + '" stroke="#451a03" stroke-width="7" stroke-linecap="round"/>' +
+          '<line x1="100" y1="' + ry + '" x2="215" y2="' + ry + '" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>' +
+          '<line x1="100" y1="' + ry + '" x2="215" y2="' + ry + '" stroke="#92400e" stroke-width="2" stroke-dasharray="4 4"/>' +
+          '<circle cx="100" cy="' + ry + '" r="4.5" fill="#fbbf24" stroke="#451a03" stroke-width="1.5"/>' +
+          '<circle cx="215" cy="' + ry + '" r="4.5" fill="#fbbf24" stroke="#451a03" stroke-width="1.5"/>' +
+          '<text x="157.5" y="' + (ry + 16) + '" text-anchor="middle" font-size="11" font-weight="800" fill="#fde68a" style="paint-order:stroke;stroke:#0f172a;stroke-width:3px">เชือก</text>';
+      }
     }
     return { b: b, s: s, s2: s2, r: r };
   }
