@@ -15,92 +15,198 @@
     return "";
   }
 
+  // Monster = action wrapper (enter / lunge / hurt / dead) > rig with its own idle loop > sprite cut-outs.
   function monsterObjectHtml(m, animClass, extraStyle) {
+    var rig = (DH.MONSTER_RIGS && DH.MONSTER_RIGS[m.id]) || { base: "none", parts: [], fx: [] };
+    var src = DH.esc(m.sprite);
+    var parts = rig.parts.map(function (p) {
+      return '<img class="mon-part part-' + p.name + '" src="' + src + '" alt="" style="clip-path:' + p.clip + ';transform-origin:' + p.pivot + '">';
+    }).join("");
+    var fx = rig.fx.map(function (f) {
+      return '<span class="mon-fx fx-' + f.name + '" style="left:' + f.left + ';top:' + f.top + '"></span>';
+    }).join("");
     return '<div class="monster-slot ' + (animClass || "anim-mon-idle") + '" style="' + (extraStyle || "") + '">' +
-      '<img class="monster-obj ' + (m.isBoss ? "is-boss" : "") + '" src="' + DH.esc(m.sprite) + '" alt="' + DH.esc(m.name) + '">' +
-      '<div class="monster-shadow"></div>' +
+      '<div class="mon-act">' +
+        '<div class="monster-obj mon-rig rig-' + DH.esc(m.id) + (m.isBoss ? " is-boss phase-" + (m.phase || 1) : "") + '" role="img" aria-label="' + DH.esc(m.name) + '">' +
+          '<img class="mon-base" src="' + src + '" alt="" style="clip-path:' + rig.base + '">' +
+          parts + fx +
+        '</div>' +
+      '</div>' +
+      '<div class="monster-shadow shadow-' + DH.esc(m.id) + '"></div>' +
     '</div>';
+  }
+
+  // ---------- Character creator ----------
+  // Built once; each change only redraws the pieces that depend on it, so the page never jumps or flickers.
+  var creator = { back: false, demoTimer: null, shuffleTimer: null };
+
+  function swatchRow(list, key, current) {
+    return list.map(function (c, i) {
+      return '<button type="button" class="swatch ' + (current === i ? "on" : "") + '" data-' + key + '="' + i + '" style="background:' + c + '" aria-label="' + key + ' ' + (i + 1) + '"></button>';
+    }).join("");
+  }
+
+  function creatorPreviewHtml(charDraft) {
+    return '<div class="cc-actor">' + DH.Avatar.render(charDraft.look, charDraft.job, { xl: true, backView: creator.back }) + '</div>';
+  }
+
+  function creatorJobInfoHtml(charDraft) {
+    var j = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
+    return '<div class="cc-job-name">' + j.icon + ' ' + j.name + '</div>' +
+      '<div class="cc-job-passive">' + DH.esc(j.passive) + '</div>' +
+      '<div class="cc-job-card">การ์ดติดตัว: ' + DH.CARDS[j.startCard].icon + ' ' + DH.CARDS[j.startCard].name + '</div>';
+  }
+
+  function creatorJobsHtml(charDraft) {
+    return Object.keys(DH.JOBS).map(function (jk) {
+      var jb = DH.JOBS[jk];
+      return '<button type="button" class="job-opt ' + (charDraft.job === jk ? "on" : "") + '" data-job="' + jk + '">' +
+        '<span class="job-thumb">' + DH.Avatar.render(charDraft.look, jk, { still: charDraft.job !== jk }) + '</span>' +
+        '<span class="job-text"><b>' + jb.icon + ' ' + jb.name + '</b>' +
+        '<span class="job-passive">' + DH.esc(jb.passive) + '</span></span>' +
+      '</button>';
+    }).join("");
+  }
+
+  // Head-and-shoulders thumbnails showing the player's own face with each option applied.
+  function creatorPickerHtml(charDraft, field, count, labels) {
+    var html = "";
+    for (var i = 0; i < count; i++) {
+      var look = {};
+      Object.keys(charDraft.look).forEach(function (k) { look[k] = charDraft.look[k]; });
+      look[field] = i;
+      if (field === "hair") look.hat = 0; // show the hairstyle itself, not a hat over it
+      var on = (charDraft.look[field] || 0) === i;
+      html += '<button type="button" class="pick-thumb ' + (on ? "on" : "") + '" data-' + field + '="' + i + '" title="' + DH.esc(labels ? labels[i] : "แบบที่ " + (i + 1)) + '">' +
+        '<span class="pick-crop">' + DH.Avatar.render(look, charDraft.job, { still: true }) + '</span>' +
+        (labels ? '<span class="pick-lbl">' + DH.esc(labels[i]) + '</span>' : '') +
+      '</button>';
+    }
+    return html;
+  }
+
+  function refreshCreator(what) {
+    var charDraft = DH.Game.getChar();
+    var $ = function (id) { return document.getElementById(id); };
+    if (!$("ccPreview")) return;
+    $("ccPreview").innerHTML = creatorPreviewHtml(charDraft);
+    $("ccJobInfo").innerHTML = creatorJobInfoHtml(charDraft);
+    $("ccJobs").innerHTML = creatorJobsHtml(charDraft);
+    $("ccHair").innerHTML = creatorPickerHtml(charDraft, "hair", 6);
+    $("ccHat").innerHTML = creatorPickerHtml(charDraft, "hat", 6, DH.HATS);
+    $("ccSkin").innerHTML = swatchRow(DH.SKIN_TONES, "skin", charDraft.look.skin);
+    $("ccHairColor").innerHTML = swatchRow(DH.HAIR_COLORS, "hc", charDraft.look.hairColor);
+    $("ccOutfit").innerHTML = swatchRow(DH.OUTFIT_COLORS, "oc", charDraft.look.outfit);
+    var stage = $("ccStage");
+    if (what !== "quiet") {
+      stage.classList.remove("cc-pop");
+      void stage.offsetWidth; // restart the pop animation
+      stage.classList.add("cc-pop");
+    }
+    if (what === "job") playJobDemo(charDraft.job);
+  }
+
+  // Selecting a job shows that job's attack once, so players see what they picked.
+  function playJobDemo(job) {
+    var actor = document.querySelector("#ccPreview .cc-actor");
+    if (!actor) return;
+    clearTimeout(creator.demoTimer);
+    actor.className = "cc-actor actor-unit anim-atk atk-" + DH.Avatar.attackStyle(job);
+    creator.demoTimer = setTimeout(function () {
+      if (actor.isConnected) actor.className = "cc-actor";
+    }, 1000);
   }
 
   function renderCharCreate() {
     var charDraft = DH.Game.getChar();
-    var j = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
+    creator.back = false;
     ensureApp().innerHTML =
-      '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.72), rgba(19,28,49,0.96)), url(\'assets/bg/bg_plaza.webp\') center/cover">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center">' +
-          '<h2 style="margin:0;color:var(--gold)">🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
+      '<div class="rpg-card cc-card">' +
+        '<div class="cc-head">' +
+          '<h2>🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
           '<button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' +
         '</div>' +
-        '<p style="color:#cbd5e1;font-size:0.86rem;margin:4px 0 10px">ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!</p>' +
-        '<label style="font-size:0.82rem;color:var(--mute);font-weight:700">ชื่อนักผจญภัย</label>' +
-        '<input id="inpName" value="' + DH.esc(charDraft.name) + '" maxlength="18" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:#fff;font:inherit;font-weight:700;margin:4px 0 10px">' +
-        '<div style="display:flex;align-items:center;gap:12px;background:rgba(15,23,42,0.88);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px">' +
-          DH.Avatar.render(charDraft.look, charDraft.job, { large: true }) +
-          '<div style="flex:1;font-size:0.84rem">' +
-            '<div style="font-weight:800;font-size:1rem;color:var(--gold)">' + j.icon + ' อาชีพ: ' + j.name + '</div>' +
-            '<div style="color:#cbd5e1">' + DH.esc(j.passive) + '</div>' +
-            '<div style="color:var(--accent);margin-top:2px">การ์ดติดตัว: ' + DH.CARDS[j.startCard].icon + ' ' + DH.CARDS[j.startCard].name + '</div>' +
+        '<p class="cc-intro">ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!</p>' +
+        '<div class="cc-top">' +
+          '<div class="cc-stage" id="ccStage">' +
+            '<img class="cc-stage-bg" src="assets/bg/bg_plaza.webp" alt="">' +
+            '<div class="cc-spot"></div>' +
+            '<div id="ccPreview" style="--dash:34px"></div>' +
+            '<button type="button" class="cc-turn" id="btnTurn" title="หมุนดูด้านหลัง">🔄</button>' +
+          '</div>' +
+          '<div class="cc-side">' +
+            '<label class="cc-lbl" for="inpName">ชื่อนักผจญภัย</label>' +
+            '<input id="inpName" class="cc-name" value="' + DH.esc(charDraft.name) + '" maxlength="18" autocomplete="off">' +
+            '<div id="ccJobInfo" class="cc-job-info"></div>' +
           '</div>' +
         '</div>' +
-        '<div style="font-size:0.88rem;font-weight:800;color:var(--gold);margin-bottom:6px">1. เลือกอาชีพ</div>' +
-        '<div class="job-grid" style="margin-bottom:12px">' + Object.keys(DH.JOBS).map(function (jk) {
-          var jb = DH.JOBS[jk];
-          return '<button type="button" class="job-opt ' + (charDraft.job === jk ? "on" : "") + '" data-job="' + jk + '">' +
-            '<b>' + jb.icon + ' ' + jb.name + '</b>' +
-            '<div style="font-size:0.75rem;color:var(--mute)">' + DH.esc(jb.passive) + '</div>' +
-          '</button>';
-        }).join("") + '</div>' +
-        '<div style="font-size:0.88rem;font-weight:800;color:var(--gold);margin-bottom:6px">2. ปรับแต่งตัวละคร</div>' +
+        '<div class="cc-section">1. เลือกอาชีพ <span>แตะเพื่อดูท่าโจมตี</span></div>' +
+        '<div class="job-grid" id="ccJobs"></div>' +
+        '<div class="cc-section">2. ปรับแต่งตัวละคร</div>' +
         '<div class="cust-box">' +
-          '<div class="cust-row">' +
-            '<span class="cust-lbl">🧑 สีผิว</span>' +
-            '<div class="swatch-row">' + DH.SKIN_TONES.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.skin === i ? "on" : "") + '" data-skin="' + i + '" style="background:' + c + '" title="สีผิว ' + (i + 1) + '"></span>'; }).join("") + '</div>' +
-          '</div>' +
-          '<div class="cust-row">' +
-            '<span class="cust-lbl">💇 ทรงผม</span>' +
-            '<button type="button" class="btn-sec" id="btnHair" style="padding:6px 12px">แบบที่ ' + ((charDraft.look.hair || 0) + 1) + ' / 6 ▸</button>' +
-          '</div>' +
-          '<div class="cust-row">' +
-            '<span class="cust-lbl">🎨 สีผม</span>' +
-            '<div class="swatch-row">' + DH.HAIR_COLORS.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.hairColor === i ? "on" : "") + '" data-hc="' + i + '" style="background:' + c + '" title="สีผม ' + (i + 1) + '"></span>'; }).join("") + '</div>' +
-          '</div>' +
-          '<div class="cust-row">' +
-            '<span class="cust-lbl">👕 สีชุด</span>' +
-            '<div class="swatch-row">' + DH.OUTFIT_COLORS.map(function (c, i) { return '<span class="swatch ' + (charDraft.look.outfit === i ? "on" : "") + '" data-oc="' + i + '" style="background:' + c + '" title="สีชุด ' + (i + 1) + '"></span>'; }).join("") + '</div>' +
-          '</div>' +
-          '<div class="cust-row">' +
-            '<span class="cust-lbl">🎩 หมวก</span>' +
-            '<button type="button" class="btn-sec" id="btnHat" style="padding:6px 12px">' + DH.HATS[(charDraft.look.hat || 0) % 6] + ' ▸</button>' +
-          '</div>' +
+          '<div class="cust-row"><span class="cust-lbl">🧑 สีผิว</span><div class="swatch-row" id="ccSkin"></div></div>' +
+          '<div class="cust-row cust-col"><span class="cust-lbl">💇 ทรงผม</span><div class="pick-row" id="ccHair"></div></div>' +
+          '<div class="cust-row"><span class="cust-lbl">🎨 สีผม</span><div class="swatch-row" id="ccHairColor"></div></div>' +
+          '<div class="cust-row"><span class="cust-lbl">👕 สีชุด</span><div class="swatch-row" id="ccOutfit"></div></div>' +
+          '<div class="cust-row cust-col"><span class="cust-lbl">🎩 หมวก</span><div class="pick-row" id="ccHat"></div></div>' +
         '</div>' +
-        '<label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.88rem;cursor:pointer">' +
+        '<label class="cc-timed">' +
           '<input type="checkbox" id="chkTimed" ' + (charDraft.timed ? "checked" : "") + '> จับเวลาขณะทำโจทย์ (แนะนำ)' +
         '</label>' +
         '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">⛲ เข้าลานน้ำพุกลางเมือง ▶</button>' +
       '</div>';
 
+    refreshCreator("quiet");
+
+    var card = ensureApp().querySelector(".cc-card");
+    var change = function (fn, what) { fn(); DH.Game.saveChar(); refreshCreator(what); };
+    // One delegated handler: the option buttons are redrawn on every change.
+    card.addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b || !card.contains(b)) return;
+      var d = b.dataset;
+      if (d.job) change(function () { charDraft.job = d.job; }, "job");
+      else if (d.skin) change(function () { charDraft.look.skin = +d.skin; });
+      else if (d.hc) change(function () { charDraft.look.hairColor = +d.hc; });
+      else if (d.oc) change(function () { charDraft.look.outfit = +d.oc; });
+      else if (d.hair) change(function () { charDraft.look.hair = +d.hair; });
+      else if (d.hat) change(function () { charDraft.look.hat = +d.hat; });
+    });
+    document.getElementById("btnTurn").onclick = function () {
+      creator.back = !creator.back;
+      refreshCreator();
+    };
     document.getElementById("inpName").oninput = function (e) { charDraft.name = e.target.value; DH.Game.saveChar(); };
     document.getElementById("chkTimed").onchange = function (e) { charDraft.timed = e.target.checked; DH.Game.saveChar(); };
     document.getElementById("btnRand").onclick = function () {
+      // Slot-machine shuffle: flick through a few random looks, then settle.
       var jks = Object.keys(DH.JOBS);
-      charDraft.job = jks[Math.floor(Math.random() * jks.length)];
-      charDraft.look = {
-        skin: Math.floor(Math.random() * DH.SKIN_TONES.length),
-        hair: Math.floor(Math.random() * 6),
-        hairColor: Math.floor(Math.random() * DH.HAIR_COLORS.length),
-        outfit: Math.floor(Math.random() * DH.OUTFIT_COLORS.length),
-        hat: Math.floor(Math.random() * 6)
-      };
-      DH.Game.saveChar();
-      render();
+      var rnd = function (n) { return Math.floor(Math.random() * n); };
+      var ticks = 0;
+      clearInterval(creator.shuffleTimer);
+      creator.back = false;
+      creator.shuffleTimer = setInterval(function () {
+        if (!document.getElementById("ccPreview")) { clearInterval(creator.shuffleTimer); return; }
+        charDraft.job = jks[rnd(jks.length)];
+        charDraft.look = {
+          skin: rnd(DH.SKIN_TONES.length),
+          hair: rnd(6),
+          hairColor: rnd(DH.HAIR_COLORS.length),
+          outfit: rnd(DH.OUTFIT_COLORS.length),
+          hat: rnd(6)
+        };
+        ticks++;
+        if (ticks >= 8) {
+          clearInterval(creator.shuffleTimer);
+          DH.Game.saveChar();
+          refreshCreator("job");
+        } else {
+          refreshCreator("quiet");
+        }
+      }, 70);
     };
-    document.querySelectorAll("[data-skin]").forEach(function (el) { el.onclick = function () { charDraft.look.skin = +el.dataset.skin; DH.Game.saveChar(); render(); }; });
-    document.querySelectorAll("[data-hc]").forEach(function (el) { el.onclick = function () { charDraft.look.hairColor = +el.dataset.hc; DH.Game.saveChar(); render(); }; });
-    document.querySelectorAll("[data-oc]").forEach(function (el) { el.onclick = function () { charDraft.look.outfit = +el.dataset.oc; DH.Game.saveChar(); render(); }; });
-    document.getElementById("btnHair").onclick = function () { charDraft.look.hair = ((charDraft.look.hair || 0) + 1) % 6; DH.Game.saveChar(); render(); };
-    document.getElementById("btnHat").onclick = function () { charDraft.look.hat = ((charDraft.look.hat || 0) + 1) % 6; DH.Game.saveChar(); render(); };
-    document.querySelectorAll("[data-job]").forEach(function (el) { el.onclick = function () { charDraft.job = el.dataset.job; DH.Game.saveChar(); render(); }; });
     document.getElementById("btnStartSolo").onclick = function () {
+      clearInterval(creator.shuffleTimer);
       charDraft.name = (document.getElementById("inpName").value || "").trim() || "นักผจญภัย";
       DH.Game.saveChar();
       DH.SFX.join();
@@ -291,7 +397,7 @@
         '<div class="mon-hud"><div class="mon-title">' + DH.esc(m.name) + '</div><div class="mon-sub">' + DH.esc(m.subtitle) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m.hp / m.maxHp) + '%"></div></div><div class="hp-text">HP ' + m.hp + ' / ' + m.maxHp + ' · ต้องสู้ ' + m.count + ' ข้อ' + (m.isBoss && g.bossBonusHp > 0 ? ' (เสริม +' + g.bossBonusHp + ' HP จากมอนหนี)' : '') + '</div>' + targetLine(g) + '</div>' +
         '<div class="actors-row" style="bottom:8%">' +
           '<div class="actor-unit">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
-          monsterObjectHtml(m, "anim-mon-idle") +
+          monsterObjectHtml(m, "anim-mon-enter") +
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:var(--gold)">' +
@@ -356,17 +462,26 @@
       var r2 = g.lastRes;
       var out = r2.outcome;
       var hitMon = (out === "correct" || out === "partial");
-      var anim = hitMon ? "anim-atk" : (out === "shielded" ? "" : "anim-hurt");
-      var monAnim = hitMon ? (g.monster.hp <= 0 ? "anim-mon-dead" : "anim-mon-hurt") : (out === "shielded" ? "anim-mon-idle" : "anim-mon-lunge");
+      var shielded = out === "shielded";
+      var atkStyle = DH.Avatar.attackStyle(charDraft.job);
+      var anim = hitMon ? "anim-atk atk-" + atkStyle : (shielded ? "anim-block" : "anim-hurt");
+      var monAnim = hitMon ? (g.monster.hp <= 0 ? "anim-mon-dead" : "anim-mon-hurt") : "anim-mon-lunge";
       var pop = hitMon
         ? '<div class="actor-dmg ok">+' + r2.dmg + ' ⚔️</div>'
-        : (out === "shielded" ? '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>' : '<div class="actor-dmg bad">💥 -1 ❤️</div>');
+        : (shielded ? '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>' : '<div class="actor-dmg bad">💥 -1 ❤️</div>');
+      var sparks = '<span class="spark"></span><span class="spark"></span><span class="spark"></span><span class="spark"></span><span class="spark"></span><span class="spark"></span>';
+      // Hit effects land where the blow connects: on the monster when we hit, on the hero when it hits us.
+      var impact = hitMon
+        ? '<div class="impact-fx on-mon fx-' + atkStyle + '"><span class="slash"></span><span class="ring"></span>' + sparks + '</div>'
+        : '<div class="impact-fx on-hero' + (shielded ? ' fx-block' : '') + '"><span class="ring"></span>' + sparks + '</div>';
       var m2 = g.monster;
-      body = '<div class="scene-stage">' +
+      body = '<div class="scene-stage ' + (hitMon || !shielded ? "shake-hit" : "") + '">' +
         '<img class="scene-bg" src="' + DH.esc(m2.bg) + '" style="' + bgFilterStyle(m2) + '">' +
         '<div class="mon-hud"><div class="mon-title">' + DH.esc(m2.name) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m2.hp / m2.maxHp) + '%"></div></div><div class="hp-text">HP ' + m2.hp + ' / ' + m2.maxHp + '</div>' + targetLine(g) + '</div>' +
         (hitMon ? '<div class="boss-impact-zone"><div class="big-dmg-pop">-' + r2.dmg + '</div></div>' : '') +
+        impact +
         '<div class="actors-row" style="bottom:8%">' +
+          (hitMon && atkStyle === "ranged" ? '<span class="proj proj-' + DH.esc(charDraft.job) + '"></span>' : '') +
           '<div class="actor-unit ' + anim + '">' + pop + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
           monsterObjectHtml(m2, monAnim) +
         '</div>' +
@@ -382,7 +497,7 @@
         '<img class="scene-bg" src="' + DH.esc(m3.bg) + '" style="' + (dead ? "filter:brightness(0.75)" : "") + '">' +
         '<div class="actors-row" style="bottom:8%">' +
           '<div class="actor-unit ' + (dead ? "anim-walk" : "") + '">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
-          (dead ? monsterObjectHtml(m3, "anim-mon-dead") : monsterObjectHtml(m3, "anim-mon-idle", "opacity:0.45;transform:translateX(35px)")) +
+          (dead ? monsterObjectHtml(m3, "anim-mon-dead") : monsterObjectHtml(m3, "anim-mon-flee")) +
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:' + (dead ? "var(--ok)" : "var(--warn)") + '">' +
@@ -442,6 +557,16 @@
     bindPhase(g);
   }
 
+  // Melee dashes and monster lunges should close the actual gap between the two, whatever the screen width.
+  function setDashDistance() {
+    var row = document.querySelector(".actors-row");
+    var hero = row && row.querySelector(".avatar-stack");
+    var mon = row && row.querySelector(".monster-obj");
+    if (!hero || !mon) return;
+    var gap = mon.getBoundingClientRect().left - hero.getBoundingClientRect().right;
+    row.style.setProperty("--dash", Math.max(30, Math.round(gap + 12)) + "px");
+  }
+
   function bindPhase(g) {
     var el;
     if (g.phase === "LOBBY") {
@@ -471,7 +596,10 @@
       });
       document.getElementById("btnRevPause").onclick = DH.Game.toggleRevPause;
       document.getElementById("btnGoBattle").onclick = DH.Game.enterBattle;
-    } else if (g.phase === "BATTLE" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.afterBattle;
+    } else if (g.phase === "BATTLE" && (el = document.getElementById("btnNext"))) {
+      el.onclick = DH.Game.afterBattle;
+      setDashDistance();
+    }
     else if ((g.phase === "MON_DEFEAT" || g.phase === "MON_ESCAPE") && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.nextStage;
     else if ((g.phase === "VICTORY" || g.phase === "DEFEAT") && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.goSummary;
     else if (g.phase === "SUMMARY") {

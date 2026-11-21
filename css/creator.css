@@ -1,0 +1,101 @@
+/* Character creator: live preview stage, visual pickers, job cards with mini avatars */
+.cc-card {
+  background: linear-gradient(180deg, rgba(11, 17, 32, 0.9), rgba(19, 28, 49, 0.98));
+}
+.cc-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.cc-head h2 { margin: 0; color: var(--gold); font-size: 1.25rem; }
+.cc-intro { color: #cbd5e1; font-size: 0.86rem; margin: 4px 0 10px; }
+
+.cc-top { display: flex; gap: 12px; align-items: stretch; margin-bottom: 12px; }
+.cc-stage {
+  position: relative;
+  flex: 0 0 46%;
+  min-height: 190px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid #334155;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 14px;
+}
+.cc-stage-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; image-rendering: pixelated; filter: brightness(0.7) saturate(0.9);
+}
+.cc-spot {
+  position: absolute; left: 50%; bottom: 10px; width: 120px; height: 22px;
+  transform: translateX(-50%); border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(251, 191, 36, 0.45), rgba(0, 0, 0, 0.35) 60%, transparent 72%);
+}
+#ccPreview { position: relative; z-index: 2; }
+.cc-actor { display: flex; justify-content: center; }
+.cc-stage.cc-pop #ccPreview { animation: ccPop 0.32s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes ccPop {
+  0% { transform: scale(0.9, 1.08); }
+  60% { transform: scale(1.06, 0.95); }
+  100% { transform: scale(1, 1); }
+}
+.cc-turn {
+  position: absolute; right: 8px; top: 8px; z-index: 3;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid var(--line); background: rgba(15, 23, 42, 0.85);
+  color: #fff; font-size: 1rem; cursor: pointer;
+}
+.cc-turn:hover { border-color: var(--gold); }
+
+.cc-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cc-lbl { font-size: 0.82rem; color: var(--mute); font-weight: 700; }
+.cc-name {
+  width: 100%; padding: 10px; border-radius: 10px; border: 2px solid var(--line);
+  background: var(--panel2); color: #fff; font: inherit; font-weight: 700;
+}
+.cc-name:focus { outline: none; border-color: var(--gold); }
+.cc-job-info {
+  background: rgba(15, 23, 42, 0.88); border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px; font-size: 0.84rem; flex: 1;
+}
+.cc-job-name { font-weight: 800; font-size: 1rem; color: var(--gold); }
+.cc-job-passive { color: #cbd5e1; margin-top: 2px; }
+.cc-job-card { color: var(--accent); margin-top: 4px; }
+
+.cc-section { font-size: 0.88rem; font-weight: 800; color: var(--gold); margin: 4px 0 6px; }
+.cc-section span { font-weight: 600; color: var(--mute); font-size: 0.76rem; margin-left: 6px; }
+
+/* Job cards with a mini avatar holding that job's weapon */
+#ccJobs { margin-bottom: 12px; }
+.job-opt { display: flex; align-items: center; gap: 8px; color: inherit; font: inherit; transition: transform 0.12s, border-color 0.12s; }
+.job-opt:hover { transform: translateY(-2px); border-color: #64748b; }
+.job-opt.on { transform: translateY(-2px); }
+.job-thumb { flex: 0 0 auto; }
+.job-thumb .avatar-stack { width: 54px; height: 54px; }
+.job-text { display: flex; flex-direction: column; min-width: 0; }
+.job-passive { font-size: 0.74rem; color: var(--mute); line-height: 1.35; }
+
+/* Swatches are buttons now */
+button.swatch { padding: 0; }
+
+/* Hair / hat pickers: cropped head thumbnails */
+.cust-row.cust-col { flex-direction: column; align-items: stretch; gap: 6px; }
+.pick-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.pick-thumb {
+  position: relative; padding: 0; cursor: pointer; font: inherit; color: inherit;
+  background: var(--panel2); border: 2px solid var(--line); border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; overflow: hidden;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.pick-thumb:hover { transform: translateY(-2px); border-color: #64748b; }
+.pick-thumb.on { border-color: var(--gold); background: rgba(251, 191, 36, 0.14); box-shadow: 0 0 0 1px var(--gold); }
+.pick-crop { display: block; width: 100%; height: 50px; flex: 0 0 auto; overflow: hidden; position: relative; }
+.pick-crop .avatar-stack { position: absolute; left: 50%; top: -4px; width: 76px; height: 76px; transform: translateX(-50%); }
+.pick-lbl { font-size: 0.62rem; color: var(--mute); padding: 1px 2px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.pick-thumb.on .pick-lbl { color: #fde68a; }
+
+.cc-timed { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 0.88rem; cursor: pointer; }
+
+@media (max-width: 520px) {
+  .cc-top { flex-direction: column; }
+  .cc-stage { flex-basis: auto; min-height: 180px; }
+  .pick-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .job-grid { grid-template-columns: 1fr; }
+}

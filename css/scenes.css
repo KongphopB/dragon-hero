@@ -123,7 +123,7 @@
   font-weight: 900;
   font-size: 1.15rem;
   text-shadow: 0 2px 4px #000;
-  animation: popDmg 1.4s ease-out forwards;
+  animation: popDmg 1.4s ease-out 0.5s both;
   z-index: 6;
 }
 .actor-dmg.ok { color: #4ade80; }
@@ -142,7 +142,7 @@
   font-weight: 900;
   color: #fbbf24;
   text-shadow: 0 4px 12px #7c2d12, 0 2px 0 #000;
-  animation: popDmg 1.6s ease-out forwards;
+  animation: popDmg 1.6s ease-out 0.5s both;
 }
 
 /* Independent Monster Sprite Object */
@@ -154,27 +154,6 @@
   justify-content: flex-end;
   pointer-events: none;
   margin-right: 4%;
-}
-.monster-shadow {
-  width: 72%;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  margin-top: -10px;
-  z-index: 1;
-}
-.monster-obj {
-  width: clamp(135px, 28vw, 220px);
-  max-height: 205px;
-  object-fit: contain;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.65));
-  z-index: 2;
-  transform-origin: bottom center;
-}
-.monster-obj.is-boss {
-  width: clamp(175px, 34vw, 275px);
-  max-height: 240px;
 }
 
 /* Animations */
@@ -252,33 +231,6 @@
   50%, 74.9% { opacity: 1; }
   75%, 100%  { opacity: 0; }
 }
-@keyframes monIdle {
-  0%, 100% { transform: translateY(0) scaleY(1); }
-  50% { transform: translateY(-4px) scaleY(1.03); }
-}
-@keyframes monLungeLeft {
-  0%, 100% { transform: translateX(0); }
-  35% { transform: translateX(-85px) scale(1.07); }
-}
-@keyframes monHurt {
-  0%, 100% { transform: translateX(0); filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.65)); }
-  20%, 60% { transform: translateX(10px) rotate(4deg); filter: brightness(1.4) sepia(1) saturate(6) hue-rotate(-35deg); }
-  40%, 80% { transform: translateX(-10px) rotate(-4deg); filter: brightness(1.4) sepia(1) saturate(6) hue-rotate(-35deg); }
-}
-@keyframes monDead {
-  0% { opacity: 1; transform: scale(1); }
-  40% { opacity: 0.9; transform: translateX(8px) rotate(6deg); filter: brightness(1.8) saturate(0); }
-  100% { opacity: 0.22; transform: translateY(22px) scale(0.75) rotate(12deg); filter: grayscale(1); }
-}
-@keyframes lungeRight {
-  0%, 100% { transform: translateX(0); }
-  40% { transform: translateX(70px) scale(1.08); }
-}
-@keyframes hurtShake {
-  0%, 100% { transform: translateX(0); filter: none; }
-  20%, 60% { transform: translateX(-8px) rotate(-6deg); filter: sepia(1) saturate(6) hue-rotate(-40deg); }
-  40%, 80% { transform: translateX(8px) rotate(6deg); filter: sepia(1) saturate(6) hue-rotate(-40deg); }
-}
 @keyframes popDmg {
   0% { opacity: 0; transform: translateY(10px) scale(0.7); }
   20% { opacity: 1; transform: translateY(-8px) scale(1.1); }
@@ -296,12 +248,6 @@
 .is-walking .step-idle { animation: stepIdle 0.68s steps(1, end) infinite; }
 .is-walking .step-s1   { animation: stepS1   0.68s steps(1, end) infinite; }
 .is-walking .step-s2   { animation: stepS2   0.68s steps(1, end) infinite; }
-.anim-atk .avatar-stack { animation: lungeRight 0.85s ease-in-out 0.15s 2; }
-.anim-hurt .avatar-stack { animation: hurtShake 0.7s ease-in-out 0.35s 2; }
-.anim-mon-idle .monster-obj { animation: monIdle 2.1s ease-in-out infinite; }
-.anim-mon-lunge .monster-obj { animation: monLungeLeft 0.9s ease-in-out 0.15s 1; }
-.anim-mon-hurt .monster-obj { animation: monHurt 0.75s ease-in-out 0.3s 2; }
-.anim-mon-dead .monster-obj { animation: monDead 1.4s ease-out forwards; }
 
 .dragon-fire-overlay {
   position: absolute;
