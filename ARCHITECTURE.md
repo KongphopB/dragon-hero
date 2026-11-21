@@ -45,3 +45,5 @@ dragon hero/
 3. **Adjust grading rules or mistake codes:** Edit `js/core/grading.js` (and `js/data/mistakes.js` for labels/tips).
 4. **Update character visuals:** Swap/add 48×48 transparent PNGs in `assets/characters/parts/` (layer order in `js/ui/avatar.js`: `weapons/*_back` → `body` → `outfits` → `hair` → `hats` → `weapons/*`).
 5. **Keep `file://` compatibility:** Do not introduce `import`/`export` or `fetch()` for local files in the single-player game.
+6. **Backgrounds & monster sprites are WebP** (`assets/bg/*.webp`, `assets/monsters/*.webp`, quality 95) to keep the page light on phones. Convert new art to WebP before adding it; character parts stay 48×48 PNG.
+7. **Hosting:** the single-player game is a static site published with GitHub Pages from `main` (repo root). Every push to `main` updates the live link, so keep `main` playable.

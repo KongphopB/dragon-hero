@@ -26,7 +26,7 @@
     var charDraft = DH.Game.getChar();
     var j = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
     ensureApp().innerHTML =
-      '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.72), rgba(19,28,49,0.96)), url(\'assets/bg/bg_plaza.png\') center/cover">' +
+      '<div class="rpg-card" style="background:linear-gradient(180deg, rgba(11,17,32,0.72), rgba(19,28,49,0.96)), url(\'assets/bg/bg_plaza.webp\') center/cover">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
           '<h2 style="margin:0;color:var(--gold)">🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
           '<button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' +
@@ -180,7 +180,7 @@
 
     if (g.phase === "LOBBY") {
       body = '<div class="scene-stage">' +
-        '<img class="scene-bg" src="assets/bg/bg_plaza.png">' +
+        '<img class="scene-bg" src="assets/bg/bg_plaza.webp">' +
         '<div class="scene-scrim"></div>' +
         '<div class="actors-row" style="justify-content:center;bottom:10%">' +
           '<div class="actor-unit anim-patrol"><div class="walk-flip">' + DH.Avatar.render(charDraft.look, charDraft.job, { walking: true }) + '</div><div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +
@@ -197,7 +197,7 @@
       body = '<div class="tbar"><i id="sTimerBar" style="width:0%"></i></div>' +
       '<div class="scene-stage">' +
         '<div class="crane-world">' +
-          '<img class="crane-bg" src="assets/bg/bg_depart_crane.png">' +
+          '<img class="crane-bg" src="assets/bg/bg_depart_crane.webp">' +
           '<div class="crane-walker">' +
             DH.Avatar.render(charDraft.look, charDraft.job, { walking: true, backView: true }) +
           '</div>' +
@@ -316,7 +316,7 @@
       var win = g.phase === "VICTORY";
       var m4 = g.monster;
       body = '<div class="scene-stage">' +
-        '<img class="scene-bg" src="assets/bg/bg_dragon.png" style="' + (win ? "filter:brightness(0.95)" : "filter:brightness(0.65) saturate(1.3)") + '">' +
+        '<img class="scene-bg" src="assets/bg/bg_dragon.webp" style="' + (win ? "filter:brightness(0.95)" : "filter:brightness(0.65) saturate(1.3)") + '">' +
         (!win ? '<div class="' + (g.defeatFate === "eat" ? "dragon-eat-overlay" : "dragon-fire-overlay") + '"></div>' : '') +
         '<div class="actors-row" style="bottom:8%">' +
           '<div class="actor-unit ' + (win ? "anim-walk" : "anim-hurt") + '">' + DH.Avatar.render(charDraft.look, charDraft.job) + '<div class="actor-tag">' + DH.esc(charDraft.name) + '</div></div>' +

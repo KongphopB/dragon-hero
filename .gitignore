@@ -1,0 +1,15 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+
+# Node (for the future multiplayer server)
+node_modules/
+
+# Teacher-uploaded custom assets in the multiplayer prototype
+multiplayer/public/assets/custom/
