@@ -134,6 +134,9 @@ button.swatch { padding: 0; }
 .crop-hat .pick-art .avatar-stack { width: 84px; height: 84px; top: 0; }
 .crop-face .pick-art { height: 40px; }
 .crop-face .pick-art .avatar-stack { width: 130px; height: 130px; top: -24px; }
+.crop-face .race-dwarf .av-scale,
+.crop-hair .race-dwarf .av-scale,
+.crop-hat  .race-dwarf .av-scale { transform: none; }
 .crop-body .pick-art { height: 70px; }
 .crop-body .pick-art .avatar-stack { width: 70px; height: 70px; top: 0; }
 .pick-thumb.locked { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.7); }

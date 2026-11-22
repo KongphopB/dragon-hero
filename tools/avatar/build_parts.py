@@ -993,8 +993,10 @@ def compose(parts, spec, pal):
     if spec.get("blush"):
         layers.append("blush")
     layers.append("outfit_" + spec.get("outfit", "tunic") + spec.get("frame", ""))
-    if spec.get("race") == "dwarf":
-        layers.append("race_dwarf_beard")
+    if spec.get("beard"):
+        layers.append("beard_" + spec["beard"])
+    elif spec.get("race") == "dwarf" and spec.get("beard") is None:
+        pass
     if spec.get("acc") == "scarf":
         layers.append("acc_scarf")
     if spec.get("acc") == "cape":
@@ -1034,7 +1036,7 @@ def preview(parts, pals):
     showcase = [
         ({"race": "human", "outfit": "tunic", "hair": "messy", "eyes": "normal", "mouth": "smile", "job": "warrior", "blush": True}, P(1, 1, 0, 2, 0)),
         ({"race": "elf", "outfit": "archer", "hair": "long", "eyes": "big", "mouth": "smile", "job": "archer"}, P(4, 2, 4, 1, 3)),
-        ({"race": "dwarf", "outfit": "knight", "hair": "shaggy", "eyes": "sharp", "mouth": "flat", "job": "knight", "hat": 5}, P(2, 3, 7, 2, 1)),
+        ({"race": "dwarf", "beard": "full", "outfit": "knight", "hair": "shaggy", "eyes": "sharp", "mouth": "flat", "job": "knight", "hat": 5}, P(2, 3, 7, 2, 1)),
         ({"race": "beast", "beast": "cat", "outfit": "ninja", "hair": "spiky", "eyes": "happy", "mouth": "cat", "job": "archer", "acc": "scarf"}, P(0, 8, 11, 0, 7)),
         ({"race": "demon", "horns": "small", "outfit": "mage", "hair": "twintails", "eyes": "angry", "mouth": "grin", "job": "mage", "acc": "cape"}, P(6, 9, 9, 10, 6)),
         ({"race": "beast", "beast": "fox", "outfit": "priest", "hair": "bun", "eyes": "sleepy", "mouth": "o", "job": "priest", "acc": "flower", "blush": True}, P(1, 1, 3, 2, 2)),
@@ -1058,7 +1060,7 @@ def preview(parts, pals):
     outfits = ["tunic", "knight", "archer", "ninja", "mage", "priest"]
     row([compose(parts, dict(base_spec, outfit=o), P(1, 0, (i * 2) % 12, (i * 2 + 5) % 12)) for i, o in enumerate(outfits)])
     races = [
-        {"race": "human"}, {"race": "elf"}, {"race": "dwarf"},
+        {"race": "human"}, {"race": "elf"}, {"race": "dwarf", "beard": "full"},
         {"race": "beast", "beast": "cat"}, {"race": "beast", "beast": "fox"}, {"race": "beast", "beast": "wolf"},
         {"race": "demon", "horns": "small"}, {"race": "demon", "horns": "ram"},
     ]
@@ -1209,10 +1211,10 @@ def build_weapons():
 
 
 def main():
-    # pixel-drawn pieces (faces, small accessories, hats, pets, weapons) go through the 2D shader;
-    # bodies, hair, outfits, races and larger accessories are built as smooth shapes (shapes.py)
+    # pixel-drawn pieces (faces, small accessories, pets) go through the 2D shader;
+    # bodies, hair, outfits, races, weapons and larger accessories are built as smooth shapes (shapes.py)
     pixel = {}
-    for fn in (build_faces, build_pets, build_weapons):
+    for fn in (build_faces, build_pets):
         pixel.update(fn())
     acc = build_accessories()
     for k in ("acc_glasses", "acc_eyepatch", "acc_flower"):

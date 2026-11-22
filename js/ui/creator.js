@@ -6,16 +6,25 @@
   var st = { tab: "race", back: false, demoTimer: null, shuffleTimer: null };
   var TABS = [
     ["race", "🧬 เผ่า"], ["face", "🙂 หน้า"], ["hair", "💇 ผม"],
-    ["outfit", "👕 ชุด"], ["extra", "🎩 ของแต่ง"], ["pet", "🐾 สัตว์เลี้ยง"]
+    ["outfit", "👕 ชุด"], ["weapon", "⚔️ อาวุธ"], ["extra", "🎩 ของแต่ง"], ["pet", "🐾 สัตว์เลี้ยง"]
   ];
   var NUMERIC = { skin: 1, hairColor: 1, eyeColor: 1, main: 1, trim: 1 };
 
   function charDraft() { return DH.Game.getChar(); }
 
   function lookWith(patch) {
-    var l = {}, cur = charDraft().look;
+    var l = {}, cd = charDraft(), cur = cd.look;
     Object.keys(cur).forEach(function (k) { l[k] = cur[k]; });
-    Object.keys(patch).forEach(function (k) { l[k] = patch[k]; });
+    Object.keys(patch).forEach(function (k) {
+      if (k === "weapon") {
+        var nextW = {};
+        if (cur.weapons) Object.keys(cur.weapons).forEach(function (j) { nextW[j] = cur.weapons[j]; });
+        nextW[cd.job] = patch.weapon;
+        l.weapons = nextW;
+      } else {
+        l[k] = patch[k];
+      }
+    });
     return l;
   }
 
@@ -24,7 +33,10 @@
   // ---------------------------------------------------------------- building blocks
   function thumb(field, value, lk, crop, label, locked) {
     var cd = charDraft();
-    var on = String(cd.look[field]) === String(value);
+    var curVal = field === "weapon"
+      ? ((cd.look.weapons && cd.look.weapons[cd.job]) || (DH.AVATAR.weapons[cd.job] && DH.AVATAR.weapons[cd.job][0].id) || "")
+      : cd.look[field];
+    var on = String(curVal) === String(value);
     var lockInfo = locked ? DH.AVATAR.unlocks[locked] : null;
     return '<button type="button" class="pick-thumb ' + crop + (on ? " on" : "") + (lockInfo ? " locked" : "") + '"' +
       (lockInfo ? ' disabled title="🔒 ' + DH.esc(lockInfo.how) + '"' : ' data-f="' + field + '" data-v="' + DH.esc(value) + '"') + '>' +
@@ -80,7 +92,10 @@
         return thumb("mouth", m.id, lookWith({ mouth: m.id, hat: "", acc: "" }), "crop-face", m.name);
       }), "cols-5")) +
       row("แก้มแดง", '<div class="chip-row"><button type="button" class="chip' + (cd.look.blush ? " on" : "") + '" data-f="blush" data-v="1">มี</button>' +
-        '<button type="button" class="chip' + (!cd.look.blush ? " on" : "") + '" data-f="blush" data-v="0">ไม่มี</button></div>');
+        '<button type="button" class="chip' + (!cd.look.blush ? " on" : "") + '" data-f="blush" data-v="0">ไม่มี</button></div>') +
+      row("หนวด / เครา", grid(A.beards.map(function (b) {
+        return thumb("beard", b.id, lookWith({ beard: b.id, hat: "", acc: "" }), "crop-head", b.name);
+      }), "cols-5"));
   }
 
   function tabHair() {
@@ -98,6 +113,15 @@
       '<button type="button" class="btn-sec cc-preset" data-f="preset" data-v="1">✨ ใช้ชุดตามอาชีพ (' + DH.esc(DH.JOBS[cd.job].name) + ')</button>' +
       row("สีหลัก", swatches("main", DH.AVATAR_PALETTES.cloth)) +
       row("สีรอง", swatches("trim", DH.AVATAR_PALETTES.cloth));
+  }
+
+  function tabWeapon() {
+    var cd = charDraft(), jb = DH.JOBS[cd.job] || DH.JOBS.warrior;
+    var list = (DH.AVATAR.weapons && DH.AVATAR.weapons[cd.job]) || [];
+    return row("อาวุธประจำอาชีพ (" + jb.icon + " " + DH.esc(jb.name) + ")", grid(list.map(function (w) {
+      return thumb("weapon", w.id, lookWith({ weapon: w.id }), "crop-body", w.name);
+    }), "cols-4")) +
+      '<div class="cc-note">ระบบจำแบบอาวุธแยกให้แต่ละอาชีพ กดเปลี่ยนอาชีพด้านบนเพื่อปรับอาวุธของอาชีพนั้นได้</div>';
   }
 
   function tabExtra() {
@@ -134,7 +158,7 @@
     }).join("") + '</div>';
   }
 
-  var TAB_FN = { race: tabRace, face: tabFace, hair: tabHair, outfit: tabOutfit, extra: tabExtra, pet: tabPet };
+  var TAB_FN = { race: tabRace, face: tabFace, hair: tabHair, outfit: tabOutfit, weapon: tabWeapon, extra: tabExtra, pet: tabPet };
 
   // ---------------------------------------------------------------- top area
   function previewHtml() {
@@ -223,6 +247,7 @@
       return;
     }
     if (field === "blush") { L.blush = raw === "1"; return; }
+    if (field === "weapon") { L.weapons = L.weapons || {}; L.weapons[cd.job] = raw; return; }
     var v = NUMERIC[field] ? parseInt(raw, 10) : raw;
     if (field === "race") {
       var r = DH.AVATAR.races.filter(function (x) { return x.id === v; })[0];

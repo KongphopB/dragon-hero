@@ -22,6 +22,10 @@ window.DH.AVATAR = {
     { id: "smile", name: "ยิ้ม" }, { id: "grin", name: "ยิ้มกว้าง" }, { id: "cat", name: "แมว :3" },
     { id: "flat", name: "เฉย" }, { id: "o", name: "อ้าปาก" }
   ],
+  beards: [
+    { id: "", name: "ไม่มี" }, { id: "mustache", name: "หนวดโค้ง" },
+    { id: "goatee", name: "เคราแพะ" }, { id: "short", name: "เคราสั้น" }, { id: "full", name: "เครายาว" }
+  ],
   hair: [
     { id: "short", name: "สั้น" }, { id: "messy", name: "ยุ่ง" }, { id: "bob", name: "บ๊อบ" },
     { id: "band", name: "คาดผม" }, { id: "side", name: "แสกข้าง" }, { id: "shaggy", name: "รากไทร" },
@@ -53,6 +57,28 @@ window.DH.AVATAR = {
     { id: "cat", name: "แมวดำ" }, { id: "wisp", name: "ภูติไฟ" },
     { id: "dragon", name: "มังกรน้อย", unlock: "pet_dragon" }
   ],
+  weapons: {
+    warrior: [
+      { id: "sword", name: "ดาบอัศวิน" }, { id: "axe", name: "ขวานศึก" },
+      { id: "katana", name: "ดาบคาตานะ" }, { id: "greatsword", name: "ดาบผลึกโลหิต" }
+    ],
+    archer: [
+      { id: "bow", name: "ธนูเรเคิร์ฟ" }, { id: "elven", name: "ธนูเอลฟ์ทอง" },
+      { id: "crossbow", name: "หน้าไม้เหล็ก" }, { id: "darkbow", name: "ธนูเงาอสรพิษ" }
+    ],
+    mage: [
+      { id: "crystal", name: "คทาคริสตัล" }, { id: "fire", name: "คทาเปลวเพลิง" },
+      { id: "moon", name: "คทาจันทรา" }, { id: "grim", name: "คทารูนโบราณ" }
+    ],
+    knight: [
+      { id: "lance", name: "หอกทวน & โล่" }, { id: "royal", name: "ดาบราชวงศ์" },
+      { id: "halberd", name: "ง้าว & โล่กลม" }, { id: "dragon", name: "หอกมังกร" }
+    ],
+    priest: [
+      { id: "sun", name: "คทาสุริยัน" }, { id: "angel", name: "คทาเทวทูต" },
+      { id: "mace", name: "ค้อนศักดิ์สิทธิ์" }, { id: "lantern", name: "ตะเกียงแสง" }
+    ]
+  },
   // Suggested outfit + colours per job (the "ชุดตามอาชีพ" button)
   jobPreset: {
     warrior: { outfit: "tunic", main: 0, trim: 2 },
@@ -74,6 +100,8 @@ window.DH.AVATAR.normalize = function (look, job) {
   look = look || {};
   if (look.v === 2) {
     if (look.eyeColor == null) look.eyeColor = 0;
+    if (look.beard == null) look.beard = "";
+    if (!look.weapons || typeof look.weapons !== "object") look.weapons = {};
     return look;
   }
   var oldHair = ["short", "messy", "bob", "band", "side", "shaggy"];
@@ -87,12 +115,14 @@ window.DH.AVATAR.normalize = function (look, job) {
     eyes: "normal",
     eyeColor: 0,
     mouth: "smile",
+    beard: "",
     blush: true,
     hair: typeof look.hair === "string" ? look.hair : oldHair[(look.hair || 0) % 6],
     hairColor: (look.hairColor || 0) % 10,
     outfit: preset.outfit,
     main: typeof look.outfit === "number" ? oldOutfitToCloth[look.outfit % 8] : preset.main,
     trim: preset.trim,
+    weapons: {},
     hat: look.hat ? String(look.hat) : "",
     acc: "",
     pet: ""
@@ -106,6 +136,8 @@ window.DH.AVATAR.random = function (job, isUnlocked) {
   var free = function (arr) { return arr.filter(function (o) { return !o.unlock || (isUnlocked && isUnlocked(o.unlock)); }); };
   var race = pick(A.races);
   var skin = race.id === "demon" ? 5 + Math.floor(Math.random() * 3) : (race.id === "elf" ? pick([0, 1, 4]) : Math.floor(Math.random() * 4));
+  var wpnMap = {};
+  if (A.weapons[job]) wpnMap[job] = pick(A.weapons[job]).id;
   return {
     v: 2,
     race: race.id,
@@ -114,12 +146,14 @@ window.DH.AVATAR.random = function (job, isUnlocked) {
     eyes: pick(A.eyes).id,
     eyeColor: P.eye ? Math.floor(Math.random() * P.eye.length) : 0,
     mouth: pick(A.mouths).id,
+    beard: Math.random() < (race.id === "dwarf" ? 0.55 : 0.2) ? pick(A.beards).id : "",
     blush: Math.random() < 0.6,
     hair: pick(A.hair).id,
     hairColor: Math.floor(Math.random() * P.hair.length),
     outfit: pick(A.outfits).id,
     main: Math.floor(Math.random() * P.cloth.length),
     trim: Math.floor(Math.random() * P.cloth.length),
+    weapons: wpnMap,
     hat: Math.random() < 0.35 ? pick(free(A.hats)).id : "",
     acc: Math.random() < 0.4 ? pick(free(A.accs)).id : "",
     pet: Math.random() < 0.5 ? pick(free(A.pets)).id : ""
