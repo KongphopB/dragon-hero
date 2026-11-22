@@ -18,10 +18,12 @@ dragon hero/
 │  ├─ creator.css          # Character creator: live preview stage, hair/hat pickers, job cards
 │  ├─ animation-rig.css    # Character idle/attack/hurt, monster rigs, impact effects
 │  ├─ systems.css          # Mute, exhausted state, boss phase-up, resume banner, send-to-teacher, tutorial
+│  ├─ tactics.css          # Monster intent bar, card hand, ultimate gauge, card draft, card/ultimate battle effects
 │  └─ scenes.css           # Stage, layered pixel avatar, monster sprite, animations
 ├─ js/
 │  ├─ data/                # Static game data (no logic, no DOM)
-│  │  ├─ characters.js     # FORCES, JOBS, CARDS, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, HATS
+│  │  ├─ characters.js     # FORCES, JOBS, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, HATS
+│  │  ├─ tactics.js        # CARDS, CARD_MULT, INTENTS, MONSTER_INTENTS, ULTIMATES (numbers and words only)
 │  │  ├─ mistakes.js       # MISTAKE_META, TOPIC_LABELS
 │  │  ├─ stages.js         # STAGES (5 stages -> Slime, Goblin, Fenrir, Orc, Dragon Boss)
 │  │  ├─ monster-rigs.js   # Per monster: body/part sprites (assets/monsters/parts), pivots, attack frame sequence
@@ -58,3 +60,4 @@ dragon hero/
 10. **Character blink:** `assets/characters/parts/body/blink_<skin>.png` are eyelid overlays generated from the skin sprites (eyes at x 19–20 & 26–27, y 16–21). Regenerate them if the face changes.
 11. **Saved runs:** an in-progress solo run is saved to `localStorage` (`dh_solo_run`) on every screen change and about once a second while a timer runs, and offered back on the start screen for 3 days. Keep any new fields on the game state `g` JSON-serialisable.
 12. **Hearts:** wrong answers (<50%) cost a heart; at 0 hearts the hero is exhausted and deals ×0.5 damage (`EXHAUSTED_MULT` in `js/core/game.js`) until healed or the next stage.
+13. **Tactic system:** each question the monster rolls an intent (`MONSTER_INTENTS` weights per monster, shown before answering). The player may play one card and, when the gauge is full, the job ultimate. All rules resolve in `submitAnswer` in `js/core/game.js`; add or rebalance cards/intents/ultimates in `js/data/tactics.js`. Cards are gained only from the pick-one draft after a monster falls (mage sees 4). Study cards (x-ray, cut, protractor) work through `FBD.mount` options `overlayArrows`, `hideDecoys`, `angleGuides`.

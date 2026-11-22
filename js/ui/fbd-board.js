@@ -471,7 +471,16 @@
 
     var ovlRoom = "";
     overlayArrows.forEach(function (oa) {
-      ovlRoom += arrowSvg(oa.force, oa.angle, false, [180, 135], 1, q, 0.18, -1);
+      ovlRoom += arrowSvg(oa.force, oa.angle, false, [180, 135], 1, q, oa.opacity || 0.18, -1);
+    });
+    // Protractor card: dashed reference lines through the object with their angles.
+    (opts.angleGuides || []).forEach(function (gd) {
+      var rad = gd.angle * Math.PI / 180;
+      var x1 = 180 + 118 * Math.cos(rad), y1 = 135 - 118 * Math.sin(rad);
+      var x2 = 180 - 118 * Math.cos(rad), y2 = 135 + 118 * Math.sin(rad);
+      var lx = 180 + 128 * Math.cos(rad), ly = 135 - 128 * Math.sin(rad) + 4;
+      ovlRoom += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + gd.color + '" stroke-width="1.6" stroke-dasharray="5 4" opacity="0.85"/>' +
+        '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-size="10" font-weight="800" fill="' + gd.color + '" style="paint-order:stroke;stroke:#0f172a;stroke-width:3px">' + gd.label + '</text>';
     });
 
     var lay = "";
@@ -682,6 +691,7 @@
         showReveal: !!revealData,
         revealMode: revMode,
         overlayArrows: opts.overlayArrows || [],
+        angleGuides: opts.angleGuides || [],
         showMarks: !readOnly && !(multi && curView === "all"),
         liveAngle: liveAngle
       }) + '</div>';
@@ -689,6 +699,11 @@
       if (!readOnly && !(multi && curView === "all")) {
         html += '<p class="fbd-hint">' + (selForce ? 'เลือก <b>' + global.DH.esc(nm(selForce, q)) + '</b> แล้ว แตะรอบวัตถุเพื่อวางลูกศร' : 'ลากปุ่ม' + (qtype === "D" ? 'แรง / cos-sin ' : 'แรง') + 'ขึ้นไปวางรอบวัตถุ · แตะ ✕ เพื่อลบและคืนปุ่ม') + '</p>';
         var palKeys = qtype === "D" ? (q.btComp || []) : (q.bt || ["W", "N", "T", "f"]);
+        if (opts.hideDecoys) {
+          var exp = Array.isArray(q.ex) ? q.ex : ((q.ex && q.ex[curView]) || []);
+          var need = exp.map(function (e) { return e[0]; });
+          palKeys = palKeys.filter(function (k) { return need.indexOf(k) >= 0; });
+        }
         var visibleButtons = [];
         palKeys.forEach(function (k) {
           if (k === "U" && !q.two) return;

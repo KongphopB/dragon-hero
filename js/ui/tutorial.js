@@ -181,8 +181,10 @@
       '<div class="rpg-card tut-card">' +
         '<h2>🃏 การ์ด หัวใจ และเวลา</h2>' +
         '<div class="tut-row"><span class="tut-ico">⏱</span><div><b>จับเวลาทุกข้อ</b><br>ตอบถูกเร็ว = ดาเมจสูงขึ้น · หมดเวลาจะส่งเท่าที่วางไว้</div></div>' +
-        '<div class="tut-row"><span class="tut-ico">🃏</span><div><b>การ์ดกลยุทธ์</b><br>แตะการ์ด<b>ก่อนกดส่งคำตอบ</b> · คุณมี <b>' + card.icon + ' ' + card.name + '</b> ติดตัว: ' + DH.esc(card.desc) + '</div></div>' +
-        '<div class="tut-row"><span class="tut-ico">⚔️</span><div><b>ระวังดาบคู่ ×2</b><br>ถ้าตอบถูกครบ ดาเมจ ×2 แต่ถ้าผิด คะแนนจะ<b>ติดลบ</b>!</div></div>' +
+        '<div class="tut-row"><span class="tut-ico">💢</span><div><b>ดูว่ามอนเตรียมทำอะไร</b><br>ทุกข้อจะมีป้ายบอก เช่น 💢 โจมตีหนัก 🛡️ ตั้งการ์ด ⏩ เร่งเวลา · การ์ดที่แก้ทางได้จะมีป้าย <b>แก้ทาง!</b></div></div>' +
+        '<div class="tut-row"><span class="tut-ico">🃏</span><div><b>การ์ดกลยุทธ์ 1 ใบต่อข้อ</b><br>แตะการ์ด<b>ก่อนกดส่งคำตอบ</b> · คุณมี <b>' + card.icon + ' ' + card.name + '</b> ติดตัว: ' + DH.esc(card.desc) + '<br>🔴 โจมตี · 🔵 ป้องกัน · 🟣 ช่วยคิด (ช่วยวาด FBD แต่ดาเมจลดลง)</div></div>' +
+        '<div class="tut-row"><span class="tut-ico">' + DH.ULTIMATES[c.job].icon + '</span><div><b>ท่าไม้ตาย: ' + DH.ULTIMATES[c.job].name + '</b><br>ตอบถูกเพื่อชาร์จเกจ 3 ช่อง แล้วกด ⚡ ใช้! · ' + DH.esc(DH.ULTIMATES[c.job].desc) + '</div></div>' +
+        '<div class="tut-row"><span class="tut-ico">🎁</span><div><b>หีบสมบัติ</b><br>ปราบมอนได้ เลือกการ์ดใหม่ 1 ใบจากหีบ · ระวังดาบคู่ ×2 ถ้าผิดคะแนน<b>ติดลบ</b>!</div></div>' +
         '<div class="tut-row"><span class="tut-ico">❤️</span><div><b>หัวใจ 3 ดวงต่อด่าน</b><br>ผิดเกินครึ่งเสีย 1 ดวง · ถ้าหมดจะ <b>😵 หมดแรง</b> ดาเมจเหลือครึ่งเดียวจนกว่าจะฟื้น (การ์ด 💚 หรือผ่านด่าน)</div></div>' +
         '<div class="tut-row"><span class="tut-ico">🐉</span><div><b>เป้าหมาย</b><br>ปราบมอน 4 ตัวแล้วโค่นมังกร · มอนที่หนีไปจะเพิ่มเลือดให้มังกร!</div></div>' +
         '<button type="button" class="btn-pri" id="tutDone" style="width:100%;margin-top:10px">✅ พร้อมแล้ว! กลับไปลานน้ำพุ</button>' +

@@ -302,6 +302,121 @@
     return '<div class="target-line t-' + cls + '">' + txt + '</div>';
   }
 
+  function draftHtml(g) {
+    var full = g.cards.length >= DH.HAND_MAX;
+    return '<div class="draft-box">' +
+      '<div class="draft-title">🎁 หีบสมบัติ! เลือกการ์ด 1 ใบ' + (full ? ' <span>(มือเต็ม ใบแรก ' + DH.CARDS[g.cards[0]].icon + ' จะถูกแทน)</span>' : '') + '</div>' +
+      '<div class="draft-row">' + g.draft.map(function (cid, i) {
+        var c = DH.CARDS[cid];
+        return '<button type="button" class="draft-card kind-' + c.kind + '" data-draft="' + cid + '" style="animation-delay:' + (i * 0.12) + 's">' +
+          '<span class="draft-ico">' + c.icon + '</span><b>' + c.name + '</b><span class="draft-desc">' + DH.esc(c.desc) + '</span>' +
+          '<span class="draft-kind">' + ({ attack: "โจมตี", defense: "ป้องกัน", study: "ช่วยคิด" })[c.kind] + '</span>' +
+        '</button>';
+      }).join("") + '</div>' +
+    '</div>';
+  }
+
+  // ---------- Tactic UI helpers ----------
+  function intentText(id, m) {
+    var it = DH.INTENTS[id];
+    return it ? it.desc.replace("{X}", m ? String(m.baseDmg) : "") : "";
+  }
+
+  function intentBarHtml(g) {
+    var it = DH.INTENTS[g.intent];
+    if (!it) return "";
+    return '<div class="intent-bar ' + (it.good ? "is-good" : "is-bad") + '">' +
+      '<span class="intent-ico">' + it.icon + '</span>' +
+      '<span><b>' + DH.esc(g.monster.name.split(" (")[0]) + ' เตรียม: ' + it.name + '</b><br>' + DH.esc(intentText(g.intent, g.monster)) + '</span>' +
+    '</div>';
+  }
+
+  function ultBarHtml(g, charDraft) {
+    var u = DH.ULTIMATES[charDraft.job];
+    if (!u) return "";
+    var val = g.ult || 0;
+    var ready = val >= DH.ULT_MAX && !g.ultArmed;
+    var pips = "";
+    for (var i = 0; i < DH.ULT_MAX; i++) {
+      var fill = Math.max(0, Math.min(1, val - i));
+      pips += '<i><b style="width:' + Math.round(fill * 100) + '%"></b></i>';
+    }
+    if (g.ultArmed) {
+      return '<div class="ult-bar armed" style="--ult:' + u.color + '"><span class="ult-ico">' + u.icon + '</span><span><b>' + u.name + ' พร้อมปล่อย!</b><br>' + DH.esc(u.desc) + '</span></div>';
+    }
+    return '<div class="ult-bar' + (ready ? " ready" : "") + '" style="--ult:' + u.color + '">' +
+      '<span class="ult-ico">' + u.icon + '</span>' +
+      '<span class="ult-info"><b>ท่าไม้ตาย: ' + u.name + '</b><span class="ult-pips">' + pips + '</span></span>' +
+      (ready ? '<button type="button" class="ult-btn" id="btnUlt">⚡ ใช้!</button>' : '<span class="ult-hint">ตอบถูกเพื่อชาร์จ</span>') +
+    '</div>';
+  }
+
+  // X-ray: the first answer arrow the player hasn't got right yet.
+  function pickXray(g) {
+    var q = g.curQ;
+    if (g.xrayPick && g.xrayPick.q === q.id) return g.xrayPick;
+    var multi = !Array.isArray(q.ex);
+    var views = multi ? ["A", "B"] : ["all"];
+    var place = g.draftPlace || {};
+    var pick = null;
+    views.some(function (v) {
+      // Reveal a harder force before W: everyone knows weight points down.
+      var exp = (multi ? (q.ex[v] || []) : q.ex).slice().sort(function (a, b) { return (a[0] === "W") - (b[0] === "W"); });
+      return exp.some(function (e) {
+        var got = place[v] && place[v][e[0]];
+        var angs = got === undefined ? [] : (Array.isArray(got) ? got : [got]);
+        var want = Array.isArray(e[1]) ? e[1][0] : e[1];
+        var ok = angs.some(function (a) { var d = Math.abs(a - want) % 360; return Math.min(d, 360 - d) <= (q.tol || 12); });
+        if (!ok) { pick = { q: q.id, view: v, force: e[0], angle: want }; return true; }
+        return false;
+      });
+    });
+    if (!pick) {
+      var e0 = multi ? q.ex.A[0] : q.ex[0];
+      pick = { q: q.id, view: multi ? "A" : "all", force: e0[0], angle: Array.isArray(e0[1]) ? e0[1][0] : e0[1] };
+    }
+    g.xrayPick = pick;
+    return pick;
+  }
+
+  // Protractor: reference lines for the angles that matter in this question.
+  function angleGuidesFor(q) {
+    var out = [{ angle: 0, label: "0°", color: "#94a3b8" }, { angle: 90, label: "90°", color: "#94a3b8" }];
+    if (q.ia) {
+      out.push({ angle: q.ia, label: "θ=" + q.ia + "°", color: "#fbbf24" });
+      out.push({ angle: 90 + q.ia, label: (90 + q.ia) + "°", color: "#fbbf24" });
+    }
+    (q.rp || []).forEach(function (a) {
+      if (out.every(function (o) { return o.angle !== a; })) out.push({ angle: a, label: a + "°", color: "#c084fc" });
+    });
+    return out;
+  }
+
+  function revealTacticsHtml(g, r) {
+    var lines = [];
+    var it = DH.INTENTS[r.intent];
+    if (r.ult) {
+      var u = DH.ULTIMATES[r.ult];
+      lines.push('<li class="tl-ult">' + u.icon + ' <b>ท่าไม้ตาย ' + u.name + '!</b>' + (r.meteor ? ' อุกกาบาต ' + r.meteor + ' ดาเมจ' : '') + '</li>');
+    }
+    if (r.card) lines.push('<li>' + DH.CARDS[r.card].icon + ' ใช้การ์ด <b>' + DH.CARDS[r.card].name + '</b></li>');
+    if (it) {
+      var msg = "";
+      if (r.intent === "open") msg = r.dmg > 0 ? "มอนเปิดช่อง ดาเมจ ×1.5!" : "มอนเปิดช่อง แต่พลาดโอกาส";
+      else if (r.intent === "guard") msg = r.effect && r.effect.type === "pierced" ? "ทะลุการ์ดของมอนได้!" : (r.dmg > 0 ? "มอนตั้งการ์ด ดาเมจเหลือครึ่ง" : "มอนตั้งการ์ด");
+      else if (r.intent === "haste") msg = "มอนเร่งเวลา" + (r.card === "freeze" ? " แต่หยุดเวลาลบผลได้" : "");
+      else if (r.intent === "heavy") msg = r.heartsLost === 2 ? "โจมตีหนัก! เสีย 2 หัวใจ" : (r.effect && r.effect.type === "blocked" ? r.effect.why : "รอดจากโจมตีหนัก");
+      if (r.effect && r.effect.type === "heal") msg = r.effect.why + "! มอนฟื้นเลือด +" + r.effect.amount;
+      else if (r.intent === "charge" || r.intent === "regen") msg = msg || (r.intent === "charge" ? "หยุดการชาร์จพลังได้!" : "หยุดการฟื้นตัวได้!");
+      if (r.effect && r.effect.type === "stolen") msg = "มอนขโมยการ์ด " + DH.CARDS[r.effect.card].icon + " " + DH.CARDS[r.effect.card].name + " ไป!";
+      else if (r.intent === "steal") msg = r.effect && r.effect.type === "blocked" ? r.effect.why : (msg || "มอนขโมยไม่สำเร็จ");
+      if (msg) lines.push('<li>' + it.icon + ' ' + DH.esc(msg) + '</li>');
+    }
+    if (r.protectedBy === "fortress") lines.push('<li>🏰 ป้อมปราการรับไว้ (เหลือ ' + (g.fortress || 0) + ' ครั้ง)</li>');
+    if (r.protectedBy === "knight") lines.push('<li>🛡️ พลังอัศวินกันข้อแรกที่ผิดไว้</li>');
+    return lines.length ? '<ul class="tactic-log">' + lines.join("") + '</ul>' : "";
+  }
+
   // Plain-text result a student can paste into LINE / Google Form for the teacher.
   function resultText(g, charDraft) {
     var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
@@ -499,19 +614,25 @@
       '</div>';
     } else if (g.phase === "QUESTION") {
       var q = g.curQ;
-      var cardsHtml = g.cards.length ? ('<div style="font-size:0.82rem;color:var(--gold);font-weight:800;margin-top:2px">🃏 การ์ดกลยุทธ์ (แตะเพื่อเปิดใช้ก่อนโจมตี):</div><div class="cards-tray">' +
+      var intent = DH.INTENTS[g.intent];
+      var counters = intent ? intent.counter : [];
+      var cardsHtml = g.cards.length ? ('<div class="hand-head">🃏 การ์ดกลยุทธ์ <span>แตะ 1 ใบก่อนส่งคำตอบ</span></div><div class="cards-tray">' +
         g.cards.map(function (cid, idx) {
           var c = DH.CARDS[cid];
-          return '<button type="button" class="card-pill card-' + cid + (g.armedCard === cid ? " armed" : "") + '" data-cardidx="' + idx + '">' +
-            '<div style="font-size:0.9rem;margin-bottom:2px">' + c.icon + ' <b>' + c.name + '</b></div>' +
-            '<div style="font-size:0.72rem;color:var(--mute);line-height:1.35">' + DH.esc(c.desc) + '</div>' +
+          var isCounter = !g.armedCard && counters.indexOf(cid) >= 0;
+          return '<button type="button" class="card-pill kind-' + c.kind + ' card-' + cid + (isCounter ? " is-counter" : "") + '" data-cardidx="' + idx + '"' + (g.armedCard ? " disabled" : "") + '>' +
+            (isCounter ? '<span class="counter-tag">แก้ทาง!</span>' : '') +
+            '<div class="card-name">' + c.icon + ' <b>' + c.name + '</b></div>' +
+            '<div class="card-desc">' + DH.esc(c.desc) + '</div>' +
           '</button>';
-        }).join("") + '</div>') : '';
+        }).join("") + '</div>') : '<div class="hand-head">🃏 ไม่มีการ์ดในมือ <span>ปราบมอนเพื่อเลือกการ์ดใหม่</span></div>';
 
       body = '<div class="tbar"><i id="sTimerBar" style="width:100%"></i></div>' +
         monsterMiniHud(g.monster) +
-        (g.armedCard ? '<div class="rpg-badge" style="margin-bottom:8px;border-color:var(--gold);color:#fde047">✨ กำลังใช้การ์ด: ' + DH.CARDS[g.armedCard].icon + ' ' + DH.CARDS[g.armedCard].name + '</div>' : '') +
-        (g.magnifierMsg ? '<div class="rpg-card" style="padding:8px 12px;margin-bottom:8px;border-color:#a855f7">' + DH.esc(g.magnifierMsg) + '</div>' : '') +
+        intentBarHtml(g) +
+        ultBarHtml(g, charDraft) +
+        (g.armedCard ? '<div class="armed-card kind-' + DH.CARDS[g.armedCard].kind + '">✨ ใช้การ์ด ' + DH.CARDS[g.armedCard].icon + ' <b>' + DH.CARDS[g.armedCard].name + '</b> แล้ว</div>' : '') +
+        (g.cardMsg ? '<div class="card-msg">' + DH.esc(g.cardMsg) + '</div>' : '') +
         (g.secondChanceMsg ? '<div class="rpg-card" style="padding:8px 12px;margin-bottom:8px;border-color:#f59e0b;color:#fde047">' + DH.esc(g.secondChanceMsg) + '</div>' : '') +
         cardsHtml +
         '<div class="rpg-card rpg-panel-quest">' +
@@ -536,6 +657,7 @@
             '<b style="font-size:1.05rem">' + (r.timedOut ? "⏱ หมดเวลา · " : "") + resTitle + '</b>' +
             '<b style="font-size:1.15rem;color:' + (r.dmg >= 0 ? "var(--ok)" : "var(--bad)") + '">' + (r.dmg >= 0 ? "+" : "") + r.dmg + ' ดาเมจ</b>' +
           '</div>' +
+          revealTacticsHtml(g, r) +
           (r.exhausted && r.dmg > 0 ? '<div class="tired-note">😵 หมดแรงอยู่ ดาเมจเหลือครึ่งเดียว · ใช้การ์ดฟื้นฟู 💚 หรือผ่านด่านนี้เพื่อฟื้นหัวใจ</div>' : '') +
           (!r.exhausted && r.nowExhausted ? '<div class="tired-note">😵 หัวใจหมดแล้ว! ข้อต่อไปดาเมจจะเหลือครึ่งเดียวจนกว่าจะฟื้น</div>' : '') +
           (r.cardEarned ? '<div style="margin-top:6px;color:var(--gold)">🎁 Streak! ได้รับการ์ด ' + DH.CARDS[r.cardEarned].icon + ' ' + DH.CARDS[r.cardEarned].name + '</div>' : '') +
@@ -556,14 +678,23 @@
     } else if (g.phase === "BATTLE") {
       var r2 = g.lastRes;
       var out = r2.outcome;
-      var hitMon = (out === "correct" || out === "partial");
+      // A meteor still lands on a wrong answer, so the monster gets hit either way.
+      var hitMon = (out === "correct" || out === "partial") || r2.meteor > 0;
       var shielded = out === "shielded";
       var atkStyle = DH.Avatar.attackStyle(charDraft.job);
       var anim = hitMon ? "anim-atk atk-" + atkStyle : (shielded ? "anim-block" : "anim-hurt");
       var monAnim = hitMon ? (g.monster.hp <= 0 ? "anim-mon-dead" : "anim-mon-hurt") : "anim-mon-lunge";
       var pop = hitMon
         ? '<div class="actor-dmg ok">+' + r2.dmg + ' ⚔️</div>'
-        : (shielded ? '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>' : '<div class="actor-dmg bad">💥 -1 ❤️</div>');
+        : (shielded ? '<div class="actor-dmg" style="color:#60a5fa">🛡️ ป้องกัน!</div>' : '<div class="actor-dmg bad">' + (r2.heartsLost ? '💥 -' + r2.heartsLost + ' ❤️' : '💥') + '</div>');
+      var ultDef = r2.ult ? DH.ULTIMATES[r2.ult] : null;
+      var tacticFx =
+        (ultDef ? '<div class="ult-flash" style="--ult:' + ultDef.color + '"></div><div class="ult-banner" style="--ult:' + ultDef.color + '">' + ultDef.icon + ' ' + ultDef.name + '!</div>' : '') +
+        (r2.meteor ? '<div class="meteor-fx"><span></span></div>' : '') +
+        (r2.effect && r2.effect.type === "heal" ? '<div class="mon-heal-pop">+' + r2.effect.amount + ' 💧</div>' : '') +
+        (r2.effect && r2.effect.type === "stolen" ? '<div class="steal-fx">' + DH.CARDS[r2.effect.card].icon + '</div>' : '') +
+        (r2.effect && r2.effect.type === "pierced" ? '<div class="pierce-fx">🔨 ทะลุการ์ด!</div>' : '') +
+        (r2.card && !ultDef ? '<div class="card-cast kind-' + DH.CARDS[r2.card].kind + '">' + DH.CARDS[r2.card].icon + '</div>' : '');
       var sparks = '<span class="flash"></span><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i><i class="spark"></i>';
       // Hit effects land where the blow connects: on the monster when we hit, on the hero when it hits us.
       var m2 = g.monster;
@@ -579,6 +710,7 @@
         '<div class="mon-hud"><div class="mon-title">' + DH.esc(m2.name) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m2.hp / m2.maxHp) + '%"></div></div><div class="hp-text">HP ' + m2.hp + ' / ' + m2.maxHp + '</div>' + targetLine(g) + '</div>' +
         (hitMon ? '<div class="boss-impact-zone"><div class="big-dmg-pop">-' + r2.dmg + '</div></div>' : '') +
         impact +
+        tacticFx +
         (r2.phaseUp ? '<div class="phase-up-flash"></div><div class="phase-up-banner">🔥 มังกรโกรธจัด! <b>เข้าสู่เฟส ' + r2.phaseUp + '</b><span>' + (r2.phaseUp === 3 ? 'เกล็ดลุกเป็นไฟ ใกล้ล้มแล้ว สู้ต่อ!' : 'มังกรเริ่มเคลื่อนไหวเร็วขึ้น!') + '</span></div>' : '') +
         '<div class="actors-row">' +
           (hitMon && atkStyle === "ranged" ? '<span class="proj proj-' + DH.esc(charDraft.job) + '"></span>' : '') +
@@ -588,7 +720,7 @@
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:' + (hitMon ? "var(--ok)" : "var(--bad)") + '">' +
-        '<div>' + (hitMon ? '⚔️ <b>โจมตีสำเร็จ!</b> สร้าง ' + r2.dmg + ' ดาเมจ!' : (out === "shielded" ? '🛡️ <b>ป้องกันไว้ได้!</b> ไม่เสียหัวใจและไม่เสีย Streak' : '💥 <b>ถูกมอนสเตอร์สวนกลับ!</b>')) + '</div>' +
+        '<div>' + (hitMon ? ((out === "correct" || out === "partial") ? '⚔️ <b>โจมตีสำเร็จ!</b> สร้าง ' + r2.dmg + ' ดาเมจ!' : '☄️ <b>อุกกาบาตถล่ม!</b> แม้ตอบพลาดก็ยังสร้าง ' + r2.dmg + ' ดาเมจ') : (out === "shielded" ? '🛡️ <b>ป้องกันไว้ได้!</b> ไม่เสียหัวใจและไม่เสีย Streak' : '💥 <b>ถูกมอนสเตอร์สวนกลับ!</b>')) + '</div>' +
         '<button class="btn-pri" id="btnNext" style="margin-top:10px;width:100%">ดำเนินการต่อ ▶</button>' +
       '</div>';
     } else if (g.phase === "MON_DEFEAT" || g.phase === "MON_ESCAPE") {
@@ -602,8 +734,10 @@
         '</div>' +
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:' + (dead ? "var(--ok)" : "var(--warn)") + '">' +
-        '<div>' + (dead ? '💥 <b>โค่น ' + DH.esc(m3.name) + ' สำเร็จ!</b> ได้รับกล่องสมบัติการ์ดช่วย +1 ใบ!' : '💨 <b>' + DH.esc(m3.name) + ' หนีไปได้!</b> เลือดที่เหลือ +' + m3.hp + ' HP ถูกส่งไปเพิ่มให้มังกรบอส! (รวม +' + g.bossBonusHp + ' HP)') + '</div>' +
-        '<button class="btn-pri" id="btnNext" style="margin-top:10px;width:100%">มุ่งหน้าสู่ด่านถัดไป ▶</button>' +
+        '<div>' + (dead ? '💥 <b>โค่น ' + DH.esc(m3.name) + ' สำเร็จ!</b>' : '💨 <b>' + DH.esc(m3.name) + ' หนีไปได้!</b> เลือดที่เหลือ +' + m3.hp + ' HP ถูกส่งไปเพิ่มให้มังกรบอส! (รวม +' + g.bossBonusHp + ' HP)') + '</div>' +
+        (dead && g.draft ? draftHtml(g) : '') +
+        (dead && g.draftPicked ? '<div class="draft-got">🎁 ได้รับ ' + DH.CARDS[g.draftPicked].icon + ' <b>' + DH.CARDS[g.draftPicked].name + '</b> เข้ามือแล้ว (มีการ์ด ' + g.cards.length + ' ใบ)</div>' : '') +
+        '<button class="btn-pri" id="btnNext" style="margin-top:10px;width:100%"' + (dead && g.draft ? ' disabled' : '') + '>' + (dead && g.draft ? 'เลือกการ์ดก่อนไปต่อ' : 'มุ่งหน้าสู่ด่านถัดไป ▶') + '</button>' +
       '</div>';
     } else if (g.phase === "VICTORY" || g.phase === "DEFEAT") {
       var win = g.phase === "VICTORY";
@@ -712,11 +846,31 @@
     } else if (g.phase === "INTRO" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.enterEncounter;
     else if (g.phase === "ENCOUNTER" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.startQuestion;
     else if (g.phase === "QUESTION") {
+      var aid = { overlayArrows: [], hideDecoys: g.armedCard === "cut", angleGuides: g.armedCard === "protractor" ? angleGuidesFor(g.curQ) : [] };
+      g.xrayText = "";
+      if (g.armedCard === "xray") {
+        var xp = pickXray(g);
+        var fnm = (DH.FORCES[xp.force] && DH.FORCES[xp.force].n) || xp.force;
+        if (xp.view === "all") aid.overlayArrows = [{ force: xp.force, angle: xp.angle, opacity: 0.55 }];
+        g.xrayText = "🔍 เอ็กซ์เรย์: " + (xp.view === "all" ? "" : "ในมุมโฟกัส " + xp.view + " ") + "มีแรง " + fnm + " ทิศ " + xp.angle + "°" + (xp.view === "all" ? " (ลูกศรจางบนกระดาน)" : "");
+        var xt = document.querySelector(".card-msg.xray");
+        if (!xt) {
+          var holder = document.createElement("div");
+          holder.className = "card-msg xray";
+          holder.textContent = g.xrayText;
+          var board0 = document.getElementById("soloBoard");
+          board0.parentNode.insertBefore(holder, board0);
+        }
+      }
       boardCtrl = global.FBD.mount(document.getElementById("soloBoard"), g.curQ, {
         biome: g.monster && g.monster.id,
         initialState: Object.keys(g.draftPlace).length ? g.draftPlace : undefined,
+        overlayArrows: aid.overlayArrows,
+        hideDecoys: aid.hideDecoys,
+        angleGuides: aid.angleGuides,
         onChange: function (st) { g.draftPlace = st; }
       });
+      if ((el = document.getElementById("btnUlt"))) el.onclick = DH.Game.useUltimate;
       document.querySelectorAll("[data-cardidx]").forEach(function (btn) {
         btn.onclick = function () { DH.Game.useCard(+btn.dataset.cardidx); };
       });
@@ -737,7 +891,12 @@
       el.onclick = DH.Game.afterBattle;
       setDashDistance();
     }
-    else if ((g.phase === "MON_DEFEAT" || g.phase === "MON_ESCAPE") && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.nextStage;
+    else if ((g.phase === "MON_DEFEAT" || g.phase === "MON_ESCAPE") && (el = document.getElementById("btnNext"))) {
+      el.onclick = DH.Game.nextStage;
+      document.querySelectorAll("[data-draft]").forEach(function (b) {
+        b.onclick = function () { DH.Game.pickDraft(b.dataset.draft); };
+      });
+    }
     else if ((g.phase === "VICTORY" || g.phase === "DEFEAT") && (el = document.getElementById("btnNext"))) {
       el.onclick = DH.Game.goSummary;
       if (g.phase === "DEFEAT") setDashDistance();
