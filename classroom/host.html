@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>สร้างห้องเรียน — Dragon Hero</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/theme.css?v=c32ddee7">
+  <link rel="stylesheet" href="../css/scenes.css?v=fb1e9508">
+  <link rel="stylesheet" href="../css/anim-hero.css?v=60fe7ea6">
+  <link rel="stylesheet" href="../css/avatar.css?v=a8e1930e">
+  <link rel="stylesheet" href="css/classroom.css?v=4c1d21fd">
+</head>
+<body>
+  <main class="cl-shell" id="setup"></main>
+  <div id="lobby" hidden></div>
+
+  <div class="su-modal" id="peek" hidden role="dialog" aria-modal="true" aria-label="ตัวอย่างโจทย์">
+    <div class="rpg-card">
+      <div class="su-modal-head"><b id="peekTitle"></b><button type="button" class="btn-sec" data-close style="padding:6px 12px">✕ ปิด</button></div>
+      <div class="su-meta" id="peekMeta"></div>
+      <p class="su-modal-q" id="peekQ"></p>
+      <div id="peekBoard"></div>
+      <div class="su-modal-nav">
+        <button type="button" class="btn-sec" id="peekPrev">◀ ข้อก่อน</button>
+        <span id="peekPos" style="align-self:center;color:var(--mute);font-size:0.85rem"></span>
+        <button type="button" class="btn-sec" id="peekNext">ข้อถัดไป ▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="su-toast" id="toast" hidden></div>
+
+  <script src="../js/data/characters.js?v=d45869fb"></script>
+  <script src="../js/data/stages.js?v=ffe060a9"></script>
+  <script src="../js/data/mistakes.js?v=c9fea033"></script>
+  <script src="../js/data/questions.js?v=99a318c6"></script>
+  <script src="../js/data/avatar-sprites.js?v=d329444c"></script>
+  <script src="../js/data/avatar-catalog.js?v=f7634306"></script>
+  <script src="../js/ui/avatar-color.js?v=2a052437"></script>
+  <script src="../js/ui/avatar.js?v=d68bf7c4"></script>
+  <script src="../js/ui/fbd-board.js?v=f3119790"></script>
+  <script src="js/qr.js?v=327e6e2c"></script>
+  <script src="js/net.js?v=58c39834"></script>
+  <script src="js/packs.js?v=65704cc7"></script>
+  <script src="js/setup.js?v=850c381d"></script>
+  <script src="js/lobby.js?v=2906f8f9"></script>
+  <script>DH.Lobby.resumeIfAny();</script>
+</body>
+</html>

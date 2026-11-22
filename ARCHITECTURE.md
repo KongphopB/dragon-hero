@@ -1,11 +1,11 @@
 # Dragon Hero: FBD Quest — Architecture & Project Rules
 
 ## Tech Stack
-- **Single-Player (current focus):** pure HTML5 + CSS3 + vanilla JavaScript (`window.DH` namespace, classic `<script>` tags — no ES modules or `fetch()` for local files, so double-clicking `index.html` works offline in any browser).
+- **Single-Player:** pure HTML5 + CSS3 + vanilla JavaScript (`window.DH` namespace, classic `<script>` tags — no ES modules or `fetch()` for local files, so double-clicking `index.html` works offline in any browser).
 - **Art style:** 16-bit pixel art (`image-rendering: pixelated`).
   - Clean empty backgrounds (`assets/bg/`), transparent monster sprites + rig parts (`assets/monsters/`).
   - Characters are **generated** 64×64 layered parts (`tools/avatar/`), embedded in `js/data/avatar-sprites.js` and recoloured in the browser.
-- **Multiplayer (deferred, `multiplayer/`):** Python stdlib HTTP + SSE prototype. To be rewritten after single-player is finished.
+- **Classroom mode (in progress):** Node server (`server/`, no npm packages) + pages in `classroom/`. The server loads the same `js/data` and `js/core` files as single-player, so questions, grading and the avatar catalogue exist only once. `multiplayer/` is the old Python prototype, kept for reference until the classroom mode replaces it.
 
 ## Where do I edit…? (แก้อะไร เปิดไฟล์ไหน)
 
@@ -36,10 +36,18 @@
 | Sound effects (เสียง) | `js/sfx.js` | — |
 | Tutorial (ฝึกเล่น) | `js/ui/tutorial.js` | — |
 | FBD drag-and-drop board (กระดานวาดแรง) | `js/ui/fbd-board.js` | — |
+| Classroom landing page (หน้าแรกห้องเรียน) | `classroom/index.html`, `classroom/js/landing.js` | — |
+| Teacher room setup: packs, mode, length (หน้าตั้งค่าห้อง) | `classroom/js/setup.js`, packs in `classroom/js/packs.js` | — |
+| Teacher lobby: plaza, code bar, kick (หน้าล็อบบี้ครู) | `classroom/js/lobby.js` | — |
+| Student phone: join, character, waiting (หน้ามือถือนักเรียน) | `classroom/js/play.js` | — |
+| Room rules on the server: join, names, kick, bots (กติกาห้อง) | `server/rooms.js` | `npm test` |
+| Classroom page styles (หน้าตาห้องเรียน) | `classroom/css/classroom.css` | — |
 
 **Regenerate** = `python tools/avatar/build_parts.py` (≈40 s; add `--preview` to also write `tools/avatar/preview.png`).
 
 **Before every push** = `python tools/stamp.py` (updates every `?v=` and warns about missing or unloaded files).
+
+**Classroom mode** = double-click `start_classroom.bat` (or `npm start`). It opens `http://localhost:8080/classroom/host.html`; students join with the address the window prints (same Wi-Fi) or by scanning the QR. Needs Node.js 18+. `npm test` drives the server with 30 simulated phones (Node 22+).
 
 ### Screens: one file per game phase (`js/ui/screens/`)
 
@@ -70,6 +78,8 @@ To add a new phase: create `js/ui/screens/<name>.js`, add its `<script>` tag to 
 ```
 dragon hero/
 ├─ index.html               # Single-player entry point (loads CSS & JS in order)
+├─ start_classroom.bat      # Teacher double-clicks this to run the classroom server
+├─ package.json            # npm start / npm test (no dependencies)
 ├─ preview.html             # Debug lab for monster rigs / battle animations
 ├─ ARCHITECTURE.md          # This file
 ├─ css/
@@ -106,6 +116,18 @@ dragon hero/
 │  │  └─ tutorial.js        # First-time guided practice
 │  ├─ sfx.js                # 8-bit Web Audio synthesizer
 │  └─ main.js               # Bootstraps Game + UI, mute toggle, asset preloading
+├─ classroom/               # Classroom mode pages (served by server/, loads ../js and ../css)
+│  ├─ index.html            # Landing: student code entry / teacher "create room"
+│  ├─ host.html             # Teacher: room setup, then the lobby (later: the game on the projector)
+│  ├─ play.html             # Student phone: character, waiting (later: answering)
+│  ├─ css/classroom.css
+│  └─ js/                   # landing, setup, packs, lobby, play, net (WebSocket), qr
+├─ server/                  # Node classroom server, no npm packages
+│  ├─ index.js              # HTTP (serves classroom/ js/ css/ assets/ only) + WebSocket at /ws
+│  ├─ ws.js                 # Minimal WebSocket implementation
+│  ├─ shared.js             # Loads js/data + js/core into Node (single source of truth)
+│  ├─ rooms.js              # Rooms, players, validation, kick, reconnect, bots
+│  └─ test.js               # npm test: end-to-end test over real WebSockets
 ├─ tools/
 │  ├─ stamp.py              # Cache-busting ?v= stamps (run before every push)
 │  └─ avatar/               # Character art generator (Python + Pillow + NumPy)
@@ -133,4 +155,5 @@ dragon hero/
 7. **Hearts:** wrong answers (<50%) cost a heart; at 0 hearts the hero is exhausted and deals ×0.5 damage (`EXHAUSTED_MULT` in `js/core/game.js`) until healed or the next stage.
 8. **Tactic system:** each question the monster rolls an intent (`MONSTER_INTENTS` weights, shown before answering). The player may play one card and, when the gauge is full, the job ultimate. All rules resolve in `submitAnswer` in `js/core/game.js`; numbers and text live in `js/data/tactics.js`. Cards come only from the pick-one draft after a monster falls (mage sees 4). Study cards (x-ray, cut, protractor) work through the `FBD.mount` options `overlayArrows`, `hideDecoys`, `angleGuides` (set up in `js/ui/screens/question.js`).
 9. **Avatar art pipeline:** characters are generated, not hand-drawn. `python tools/avatar/build_parts.py` draws every part as smooth shapes at 8x (`shapes/`, `hires.py`) or as small pixel art (`pixel_parts.py`), lights them with colour-key pixels (`shade.py`), and writes them all into `js/data/avatar-sprites.js`. The game swaps the key colours for the player's choices in `js/ui/avatar-color.js`, whose `ramp()` must stay in step with `tools/avatar/shade.py`. Sprites are embedded as data URLs so recolouring also works from `file://`. The generator is deterministic: rerunning it without art changes leaves `avatar-sprites.js` byte-for-byte the same, so any diff in that file is a real art change.
-10. **localStorage keys:** `dh_solo_char` (character), `dh_solo_run` (saved run), `dh_tut_done` (tutorial finished), `dh_sfx` (sound on/off), `dh_unlocks` (cosmetic unlocks).
+10. **Classroom server rules:** the server never trusts a phone — names are trimmed and filtered, looks are rebuilt from `js/data/avatar-catalog.js` (`cleanLook` in `server/rooms.js`), only the teacher's socket may send `host:*` messages, and each connection is rate-limited. Rooms live in memory: restarting the server ends every room (pages handle this with a message). Students reconnect with a per-room token (`localStorage` `dh_cl_<code>`); the teacher page reconnects with `sessionStorage` `dh_host_room`. Classroom pages share the student's character with single-player (`dh_solo_char`).
+11. **localStorage keys:** `dh_solo_char` (character), `dh_solo_run` (saved run), `dh_tut_done` (tutorial finished), `dh_sfx` (sound on/off), `dh_unlocks` (cosmetic unlocks), `dh_host_setup` (teacher's last room settings), `dh_cl_<code>` (student's token for one room).

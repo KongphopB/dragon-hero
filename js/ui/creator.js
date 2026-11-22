@@ -10,7 +10,22 @@
   ];
   var NUMERIC = { skin: 1, hairColor: 1, eyeColor: 1, main: 1, trim: 1 };
 
-  function charDraft() { return DH.Game.getChar(); }
+  // Single-player uses the defaults; the classroom phone page passes its own options.
+  var DEFAULTS = {
+    getChar: function () { return DH.Game.getChar(); },
+    saveChar: function () { DH.Game.saveChar(); },
+    title: "🐉 Dragon Hero: ผจญภัยเดี่ยว",
+    intro: "ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!",
+    startLabel: "⛲ เข้าลานน้ำพุกลางเมือง ▶",
+    assetBase: "",
+    showResume: true,
+    showTimed: true,
+    showMute: true,
+    onStart: function () { DH.SFX.join(); DH.Game.enterLobby(); }
+  };
+  var opt = DEFAULTS;
+  function charDraft() { return opt.getChar(); }
+  function saveChar() { opt.saveChar(); }
 
   function lookWith(patch) {
     var l = {}, cd = charDraft(), cur = cd.look;
@@ -222,7 +237,7 @@
   }
 
   function resumeBannerHtml() {
-    var saved = DH.Game.getSavedRun();
+    var saved = opt.showResume && DH.Game.getSavedRun();
     if (!saved) return "";
     var sg = saved.g;
     var stg = DH.STAGES[sg.stageIdx] || {};
@@ -259,7 +274,9 @@
     L[field] = v;
   }
 
-  function render() {
+  function render(options) {
+    opt = {};
+    Object.keys(DEFAULTS).forEach(function (k) { opt[k] = options && options[k] !== undefined ? options[k] : DEFAULTS[k]; });
     var cd = charDraft();
     cd.look = DH.AVATAR.normalize(cd.look, cd.job);
     st.back = false;
@@ -267,14 +284,14 @@
     app.innerHTML =
       '<div class="rpg-card cc-card">' +
         '<div class="cc-head">' +
-          '<h2>🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
-          '<span><button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' + DH.Screens.muteButtonHtml() + '</span>' +
+          '<h2>' + opt.title + '</h2>' +
+          '<span><button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' + (opt.showMute ? DH.Screens.muteButtonHtml() : '') + '</span>' +
         '</div>' +
-        '<p class="cc-intro">ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!</p>' +
+        '<p class="cc-intro">' + opt.intro + '</p>' +
         resumeBannerHtml() +
         '<div class="cc-top">' +
           '<div class="cc-stage" id="ccStage">' +
-            '<img class="cc-stage-bg" src="assets/bg/bg_plaza.webp" alt="">' +
+            '<img class="cc-stage-bg" src="' + opt.assetBase + 'assets/bg/bg_plaza.webp" alt="">' +
             '<div class="cc-spot"></div>' +
             '<div id="ccPreview" style="--dash:34px"></div>' +
             '<button type="button" class="cc-turn" id="btnTurn" title="หมุนดูด้านหลัง">🔄</button>' +
@@ -290,10 +307,10 @@
         '<div class="cc-section">2. ปรับแต่งตัวละคร</div>' +
         '<div class="cc-tabs" id="ccTabs" role="tablist"></div>' +
         '<div class="cust-box cc-tab-body" id="ccTabBody"></div>' +
-        '<label class="cc-timed">' +
+        (opt.showTimed ? '<label class="cc-timed">' +
           '<input type="checkbox" id="chkTimed" ' + (cd.timed ? "checked" : "") + '> จับเวลาขณะทำโจทย์ (แนะนำ)' +
-        '</label>' +
-        '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">⛲ เข้าลานน้ำพุกลางเมือง ▶</button>' +
+        '</label>' : '') +
+        '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">' + opt.startLabel + '</button>' +
       '</div>';
 
     refresh("quiet");
@@ -313,12 +330,12 @@
       if (!b || !card.contains(b) || b.disabled) return;
       var d = b.dataset;
       if (d.tab) { st.tab = d.tab; refresh("quiet"); return; }
-      if (d.job) { cd.job = d.job; DH.Game.saveChar(); refresh("job"); return; }
-      if (d.f) { applyChoice(d.f, d.v); DH.Game.saveChar(); refresh(); }
+      if (d.job) { cd.job = d.job; saveChar(); refresh("job"); return; }
+      if (d.f) { applyChoice(d.f, d.v); saveChar(); refresh(); }
     });
     document.getElementById("btnTurn").onclick = function () { st.back = !st.back; refresh(); };
-    document.getElementById("inpName").oninput = function (e) { cd.name = e.target.value; DH.Game.saveChar(); };
-    document.getElementById("chkTimed").onchange = function (e) { cd.timed = e.target.checked; DH.Game.saveChar(); };
+    document.getElementById("inpName").oninput = function (e) { cd.name = e.target.value; saveChar(); };
+    if (opt.showTimed) document.getElementById("chkTimed").onchange = function (e) { cd.timed = e.target.checked; saveChar(); };
     document.getElementById("btnRand").onclick = function () {
       // Slot-machine shuffle: flick through a few random looks, then settle.
       var jks = Object.keys(DH.JOBS);
@@ -332,7 +349,7 @@
         ticks++;
         if (ticks >= 8) {
           clearInterval(st.shuffleTimer);
-          DH.Game.saveChar();
+          saveChar();
           refresh("job");
         } else {
           document.getElementById("ccPreview").innerHTML = previewHtml();
@@ -342,9 +359,8 @@
     document.getElementById("btnStartSolo").onclick = function () {
       clearInterval(st.shuffleTimer);
       cd.name = (document.getElementById("inpName").value || "").trim() || "นักผจญภัย";
-      DH.Game.saveChar();
-      DH.SFX.join();
-      DH.Game.enterLobby();
+      saveChar();
+      opt.onStart(cd);
     };
   }
 

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dragon Hero: ห้องเรียน FBD</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/theme.css?v=c32ddee7">
+  <link rel="stylesheet" href="../css/scenes.css?v=fb1e9508">
+  <link rel="stylesheet" href="../css/anim-hero.css?v=60fe7ea6">
+  <link rel="stylesheet" href="../css/avatar.css?v=a8e1930e">
+  <link rel="stylesheet" href="css/classroom.css?v=4c1d21fd">
+</head>
+<body>
+  <main class="cl-shell">
+    <section class="cl-hero">
+      <img class="scene-bg" src="../assets/bg/bg_plaza.webp" alt="">
+      <div class="cl-title">
+        <h1>🐉 Dragon Hero</h1>
+        <p>ผจญภัยปราบมังกรด้วย Free-Body Diagram · โหมดห้องเรียน</p>
+      </div>
+      <div class="cl-walkers" id="walkers"></div>
+    </section>
+
+    <section class="cl-choices">
+      <form class="rpg-card cl-choice cl-student" id="joinForm" autocomplete="off">
+        <span class="cl-role">นักเรียน</span>
+        <h2>🛡️ เข้าห้องเรียน</h2>
+        <p>กรอกรหัส 6 หลักที่ขึ้นบนจอครู หรือสแกน QR บนจอ</p>
+        <div class="cl-code">
+          <input id="codeInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" aria-label="รหัสห้อง 6 หลัก">
+        </div>
+        <div class="cl-hint" id="codeHint" aria-live="polite">&nbsp;</div>
+        <button type="submit" class="btn-blue" id="btnJoin" disabled>เข้าห้อง ▶</button>
+      </form>
+
+      <div class="rpg-card cl-choice cl-teacher">
+        <span class="cl-role">ครู</span>
+        <h2>🏰 สร้างห้องเรียน</h2>
+        <p>เปิดหน้านี้บนเครื่องที่ต่อโปรเจกเตอร์</p>
+        <ol class="cl-steps">
+          <li><b>1</b> เลือกชุดโจทย์และโหมดการเล่น</li>
+          <li><b>2</b> ได้รหัสห้อง + QR ให้นักเรียนสแกน</li>
+          <li><b>3</b> คุมจังหวะเกม ดูเฉลยและสรุปผลทั้งห้อง</li>
+        </ol>
+        <a class="btn-pri" href="host.html" style="text-align:center;text-decoration:none">เริ่มสร้างห้อง ▶</a>
+      </div>
+    </section>
+
+    <nav class="cl-foot">
+      <a class="cl-link" href="../index.html">🎮 ฝึกเล่นคนเดียว</a>
+      <a class="cl-link is-soon" href="#" aria-disabled="true">📜 แต่งชุดโจทย์ <small>(เร็วๆ นี้)</small></a>
+    </nav>
+  </main>
+
+  <div class="su-toast" id="toast" hidden></div>
+
+  <script src="../js/data/characters.js?v=d45869fb"></script>
+  <script src="../js/data/avatar-sprites.js?v=d329444c"></script>
+  <script src="../js/data/avatar-catalog.js?v=f7634306"></script>
+  <script src="../js/ui/avatar-color.js?v=2a052437"></script>
+  <script src="../js/ui/avatar.js?v=d68bf7c4"></script>
+  <script src="js/net.js?v=58c39834"></script>
+  <script src="js/landing.js?v=bab295d0"></script>
+</body>
+</html>
