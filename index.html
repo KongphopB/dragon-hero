@@ -5,41 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Dragon Hero: FBD Quest</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/theme.css?v=12">
-  <link rel="stylesheet" href="css/scenes.css?v=17">
-  <link rel="stylesheet" href="css/animation-rig.css?v=14">
-  <link rel="stylesheet" href="css/creator.css?v=16">
-  <link rel="stylesheet" href="css/systems.css?v=12">
-  <link rel="stylesheet" href="css/tactics.css?v=12">
-  <link rel="stylesheet" href="css/avatar.css?v=17">
+  <link rel="stylesheet" href="css/theme.css?v=c32ddee7">
+  <link rel="stylesheet" href="css/scenes.css?v=fb1e9508">
+  <link rel="stylesheet" href="css/anim-hero.css?v=60fe7ea6">
+  <link rel="stylesheet" href="css/anim-monsters.css?v=31f8a075">
+  <link rel="stylesheet" href="css/anim-fx.css?v=2e1c7c2e">
+  <link rel="stylesheet" href="css/creator.css?v=1149ee9a">
+  <link rel="stylesheet" href="css/systems.css?v=f2180ed9">
+  <link rel="stylesheet" href="css/tactics.css?v=425dee0d">
+  <link rel="stylesheet" href="css/avatar.css?v=a8e1930e">
 </head>
 <body>
   <div class="solo-shell" id="app"></div>
 
   <!-- 1. Data Modules -->
-  <script src="js/data/characters.js?v=12"></script>
-  <script src="js/data/tactics.js?v=12"></script>
-  <script src="js/data/avatar-sprites.js?v=23"></script>
-  <script src="js/data/avatar-catalog.js?v=17"></script>
-  <script src="js/data/mistakes.js?v=12"></script>
-  <script src="js/data/stages.js?v=12"></script>
-  <script src="js/data/monster-rigs.js?v=12"></script>
-  <script src="js/data/questions.js?v=12"></script>
+  <script src="js/data/characters.js?v=d45869fb"></script>
+  <script src="js/data/tactics.js?v=ca21f62c"></script>
+  <script src="js/data/avatar-sprites.js?v=d329444c"></script>
+  <script src="js/data/avatar-catalog.js?v=f7634306"></script>
+  <script src="js/data/mistakes.js?v=c9fea033"></script>
+  <script src="js/data/stages.js?v=ffe060a9"></script>
+  <script src="js/data/monster-rigs.js?v=1426e439"></script>
+  <script src="js/data/questions.js?v=99a318c6"></script>
 
   <!-- 2. Core Logic & Audio -->
-  <script src="js/sfx.js?v=12"></script>
-  <script src="js/core/grading.js?v=12"></script>
-  <script src="js/core/adaptive.js?v=12"></script>
-  <script src="js/core/unlocks.js?v=12"></script>
-  <script src="js/core/game.js?v=12"></script>
+  <script src="js/sfx.js?v=7263e26b"></script>
+  <script src="js/core/grading.js?v=66135e0d"></script>
+  <script src="js/core/adaptive.js?v=68f76184"></script>
+  <script src="js/core/unlocks.js?v=04875315"></script>
+  <script src="js/core/game.js?v=87e7e5e1"></script>
 
   <!-- 3. UI & Bootstrap -->
-  <script src="js/ui/avatar-color.js?v=12"></script>
-  <script src="js/ui/avatar.js?v=20"></script>
-  <script src="js/ui/fbd-board.js?v=12"></script>
-  <script src="js/ui/screens.js?v=12"></script>
-  <script src="js/ui/creator.js?v=17"></script>
-  <script src="js/ui/tutorial.js?v=12"></script>
-  <script src="js/main.js?v=12"></script>
+  <script src="js/ui/avatar-color.js?v=2a052437"></script>
+  <script src="js/ui/avatar.js?v=d68bf7c4"></script>
+  <script src="js/ui/fbd-board.js?v=f3119790"></script>
+  <!-- one file per game screen; core.js + common.js first -->
+  <script src="js/ui/screens/core.js?v=b4f13c79"></script>
+  <script src="js/ui/screens/common.js?v=16aa03be"></script>
+  <script src="js/ui/screens/lobby.js?v=ea19952d"></script>
+  <script src="js/ui/screens/journey.js?v=af3f9d3e"></script>
+  <script src="js/ui/screens/question.js?v=3a615765"></script>
+  <script src="js/ui/screens/reveal.js?v=96e2903b"></script>
+  <script src="js/ui/screens/battle.js?v=c24374f0"></script>
+  <script src="js/ui/screens/stage-end.js?v=203b3dd0"></script>
+  <script src="js/ui/screens/finale.js?v=d6797665"></script>
+  <script src="js/ui/screens/summary.js?v=5feda467"></script>
+  <script src="js/ui/creator.js?v=68b359c0"></script>
+  <script src="js/ui/tutorial.js?v=935de931"></script>
+  <script src="js/main.js?v=86a3c9e3"></script>
 </body>
 </html>

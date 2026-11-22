@@ -30,7 +30,7 @@
       if (!rig || !rig.baseSrc) { urls.push(s.sprite); return; }
       urls.push(rig.baseSrc);
       (rig.parts || []).forEach(function (p) { if (p.src) urls.push(p.src); });
-      // Attack frames are requested with ?v=9 in screens.js, so preload that exact URL.
+      // Attack frames are requested with ?v=9 in js/ui/screens/common.js, so preload that exact URL.
       (rig.atkSeq || []).forEach(function (f) { urls.push(f + "?v=9"); });
     });
     urls.forEach(function (u) { var img = new Image(); img.src = u; });

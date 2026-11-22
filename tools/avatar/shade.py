@@ -216,7 +216,7 @@ def shade(im, classify, outline_rgb, shadow_alpha_rgba=None):
         mats = [labels[(x + dx, y + dy)][0] for dx, dy in N4 if (x + dx, y + dy) in labels]
         silhouette = any(not (0 <= x + dx < w and 0 <= y + dy < h) or px[x + dx, y + dy][3] == 0 for dx, dy in N4)
         if mats:
-            mat = max(set(mats), key=mats.count)
+            mat = max(sorted(set(mats)), key=mats.count)  # sorted: ties pick the same material every run
             col = KEYS6[mat][5] if mat in KEYS6 else ramp(FIXED[mat])[5]
             if silhouette and mat not in KEYS6:
                 col = tuple(int(c * 0.65 + o * 0.35) for c, o in zip(col, outline_rgb))

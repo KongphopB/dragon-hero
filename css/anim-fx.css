@@ -1,0 +1,174 @@
+/* =====================================================================
+   Battle effects — projectiles and dragon fire, impact flash/ring/slash/sparks, screen shake.
+   Also the reduced-motion and small-screen overrides for all three anim files, so keep this file last.
+   Battle timeline: wind-up 0–0.3s, the blow connects at 0.5s, recover by ~1.1s.
+   ===================================================================== */
+
+/* Projectiles fly across the actors row and land at 0.5s */
+.proj { position: absolute; left: 16%; bottom: 26%; z-index: 6; opacity: 0; animation: projFly 0.26s linear 0.26s both; }
+.stage-dragon .proj { bottom: 23%; }
+.proj-archer { width: 30px; height: 4px; background: linear-gradient(90deg, #a16207 0 70%, #e5e7eb 70%); box-shadow: 0 0 6px rgba(255, 255, 255, 0.6); }
+.proj-archer::after { content: ""; position: absolute; right: -6px; top: -3px; border-left: 8px solid #e5e7eb; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.proj-mage, .proj-priest { width: 18px; height: 18px; border-radius: 50%; }
+.proj-mage { background: radial-gradient(circle, #fff, #38bdf8 45%, #1d4ed8); box-shadow: 0 0 14px #38bdf8, -14px 0 10px rgba(56, 189, 248, 0.5), -26px 0 8px rgba(56, 189, 248, 0.25); }
+.proj-priest { background: radial-gradient(circle, #fff, #fde047 45%, #f59e0b); box-shadow: 0 0 16px #fde047, -14px 0 10px rgba(253, 224, 71, 0.5), -26px 0 8px rgba(253, 224, 71, 0.25); }
+@keyframes projFly {
+  0%   { left: 16%; opacity: 0; transform: translateY(0) scale(0.7); }
+  4%   { opacity: 1; }
+  50%  { transform: translateY(calc(var(--dash-y, 0px) * 0.5 - 10px)) scale(1); }
+  92%  { opacity: 1; }
+  100% { left: 74%; opacity: 0; transform: translateY(var(--dash-y, 0px)) scale(1.2); }
+}
+.dragon-breath-cone {
+  position: absolute;
+  left: var(--mouth-x, 58%);
+  top: var(--mouth-y, 68%);
+  width: var(--fire-dist, 160px);
+  height: 46px;
+  transform-origin: 0% 50%;
+  z-index: 7;
+  pointer-events: none;
+  opacity: 0;
+  clip-path: polygon(0 43%, 100% 2%, 100% 98%, 0 57%);
+  background:
+    linear-gradient(180deg, transparent 8%, rgba(255, 251, 235, 0.92) 44%, rgba(254, 240, 138, 0.96) 50%, rgba(255, 251, 235, 0.92) 56%, transparent 92%),
+    linear-gradient(90deg, #fffbeb 0%, #fbbf24 25%, #f97316 62%, rgba(220, 38, 38, 0.85) 100%);
+  filter: drop-shadow(0 0 14px #f97316) drop-shadow(0 0 26px rgba(239, 68, 68, 0.75));
+  mix-blend-mode: screen;
+  animation: dragonBreathJet 0.48s ease-out 0.30s both;
+}
+@keyframes dragonBreathJet {
+  0%   { opacity: 0; transform: translate(0, -50%) rotate(var(--fire-ang, 180deg)) scaleX(0.06) scaleY(0.45); }
+  18%  { opacity: 1; transform: translate(0, -50%) rotate(var(--fire-ang, 180deg)) scaleX(0.85) scaleY(0.95); }
+  45%  { opacity: 1; transform: translate(0, -50%) rotate(var(--fire-ang, 180deg)) scaleX(1.06) scaleY(1.18); }
+  72%  { opacity: 0.9; transform: translate(0, -50%) rotate(var(--fire-ang, 180deg)) scaleX(1.04) scaleY(0.92); }
+  100% { opacity: 0; transform: translate(0, -50%) rotate(var(--fire-ang, 180deg)) scaleX(1.1) scaleY(0.2); }
+}
+.proj-dragon {
+  left: var(--mouth-x, 58%);
+  top: var(--mouth-y, 68%);
+  bottom: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 10%, #fef08a 34%, #f97316 68%, transparent 100%);
+  box-shadow: 0 0 24px #fb923c, 0 0 42px rgba(239, 68, 68, 0.75);
+  animation: dragonFireProj 0.24s ease-in 0.30s both;
+}
+.proj-dragon-2 {
+  width: 24px;
+  height: 24px;
+  animation: dragonFireProj 0.24s ease-in 0.38s both;
+}
+@keyframes dragonFireProj {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
+  12%  { opacity: 1; transform: translate(calc(var(--fire-dx, -150px) * 0.14 - 50%), calc(var(--fire-dy, 0px) * 0.14 - 50%)) scale(1.05); }
+  85%  { opacity: 1; transform: translate(calc(var(--fire-dx, -150px) * 0.92 - 50%), calc(var(--fire-dy, 0px) * 0.92 - 50%)) scale(1.25); }
+  100% { opacity: 0; transform: translate(calc(var(--fire-dx, -150px) - 50%), calc(var(--fire-dy, 0px) - 50%)) scale(1.75); }
+}
+
+/* ---------- Impact effects ---------- */
+.impact-fx { position: absolute; width: 0; height: 0; z-index: 8; pointer-events: none; }
+.impact-fx.on-mon { left: var(--mon-fx-x, 76%); top: var(--mon-fx-y, 58%); }
+.impact-fx.on-hero { left: var(--hero-fx-x, 14%); top: var(--hero-fx-y, 68%); }
+.impact-fx .flash {
+  position: absolute; left: -45px; top: -45px; width: 90px; height: 90px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(253, 224, 71, 0.72) 38%, transparent 72%);
+  mix-blend-mode: screen; opacity: 0; animation: flashPop 0.28s ease-out 0.62s both;
+}
+.impact-fx.on-hero .flash { background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(248, 113, 113, 0.72) 42%, transparent 72%); }
+.impact-fx.fx-block .flash { background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(96, 165, 250, 0.72) 42%, transparent 72%); }
+.impact-fx.fx-dragon-fire .flash {
+  left: -65px; top: -65px; width: 130px; height: 130px;
+  background: radial-gradient(circle, #ffffff 0%, #fde047 28%, rgba(249, 115, 22, 0.85) 58%, transparent 76%);
+  animation: flashPop 0.45s ease-out 0.62s both;
+}
+.impact-fx .ring {
+  position: absolute; left: -34px; top: -34px; width: 68px; height: 68px; border-radius: 50%;
+  border: 4px solid #fef08a; box-shadow: 0 0 14px rgba(253, 224, 71, 0.8);
+  opacity: 0; animation: ringPop 0.44s ease-out 0.62s both;
+}
+.impact-fx .ring-2 {
+  left: -46px; top: -46px; width: 92px; height: 92px; border-width: 2.5px;
+  animation: ringPop 0.54s ease-out 0.68s both;
+}
+.impact-fx.on-hero .ring { border-color: #f87171; box-shadow: 0 0 14px rgba(239, 68, 68, 0.75); }
+.impact-fx.fx-block .ring { border-color: #60a5fa; box-shadow: 0 0 16px rgba(59, 130, 246, 0.85); }
+.impact-fx.fx-ranged .ring { border-color: #bae6fd; box-shadow: 0 0 16px rgba(56, 189, 248, 0.85); }
+.impact-fx.fx-dragon-fire .ring { border-color: #fb923c; box-shadow: 0 0 22px rgba(249, 115, 22, 0.95); }
+.impact-fx.fx-slam .ring-2 {
+  left: -58px; top: -12px; width: 116px; height: 28px;
+  border-color: rgba(226, 232, 240, 0.85);
+}
+.impact-fx .slash {
+  position: absolute; left: -56px; top: -5px; width: 112px; height: 10px;
+  clip-path: polygon(0 50%, 42% 0, 100% 50%, 42% 100%);
+  background: linear-gradient(90deg, rgba(254, 240, 138, 0.4), #ffffff 48%, rgba(254, 240, 138, 0.4));
+  filter: drop-shadow(0 0 10px #fde047);
+  opacity: 0; animation: slashIn 0.30s ease-out 0.60s both;
+}
+.impact-fx .slash-2 { animation: slashIn2 0.30s ease-out 0.66s both; }
+.impact-fx.fx-ranged .slash { display: none; }
+.impact-fx.fx-mon-slash .slash {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.4), #ffffff 48%, rgba(239, 68, 68, 0.5));
+  filter: drop-shadow(0 0 12px #ef4444);
+  animation: monSlashIn 0.30s ease-out 0.60s both;
+}
+.impact-fx.fx-mon-slash .slash-2 { animation: monSlashIn2 0.30s ease-out 0.66s both; }
+.impact-fx i.spark {
+  position: absolute; left: -4px; top: -4px; width: 9px; height: 9px; border-radius: 2px;
+  background: #fde047; box-shadow: 0 0 10px #f59e0b; opacity: 0; animation: sparkFly 0.52s ease-out 0.62s both;
+}
+/* Hero attacks land faster (~0.48s) so .on-mon FX fires right when hero sword/arrow connects */
+.impact-fx.on-mon .flash { animation-delay: 0.48s; }
+.impact-fx.on-mon .ring  { animation-delay: 0.48s; }
+.impact-fx.on-mon .ring-2 { animation-delay: 0.54s; }
+.impact-fx.on-mon .slash { animation-delay: 0.46s; }
+.impact-fx.on-mon .slash-2 { animation-delay: 0.52s; }
+.impact-fx.on-mon i.spark { animation-delay: 0.48s; }
+.impact-fx.on-hero i.spark { background: #fca5a5; box-shadow: 0 0 10px #ef4444; }
+.impact-fx.fx-dragon-fire i.spark { width: 11px; height: 11px; border-radius: 50%; background: #fef08a; box-shadow: 0 0 12px #f97316; }
+.impact-fx.fx-block i.spark { background: #bfdbfe; box-shadow: 0 0 10px #3b82f6; }
+.impact-fx i.spark:nth-of-type(1) { --dx: 54px;  --dy: -34px; }
+.impact-fx i.spark:nth-of-type(2) { --dx: -48px; --dy: -42px; }
+.impact-fx i.spark:nth-of-type(3) { --dx: 58px;  --dy: 18px; }
+.impact-fx i.spark:nth-of-type(4) { --dx: -54px; --dy: 24px; }
+.impact-fx i.spark:nth-of-type(5) { --dx: 8px;   --dy: -60px; }
+.impact-fx i.spark:nth-of-type(6) { --dx: -10px; --dy: 46px; }
+.impact-fx i.spark:nth-of-type(7) { --dx: 36px;  --dy: 40px; }
+.impact-fx i.spark:nth-of-type(8) { --dx: -34px; --dy: -16px; }
+@keyframes flashPop { 0% { transform: scale(0.25); opacity: 0; } 20% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes ringPop { 0% { transform: scale(0.2); opacity: 0; } 12% { transform: scale(0.35); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes slashIn { 0% { transform: rotate(-34deg) scaleX(0.1); opacity: 1; } 45% { transform: rotate(-34deg) scaleX(1.12); opacity: 1; } 100% { transform: rotate(-34deg) scaleX(1.28); opacity: 0; } }
+@keyframes slashIn2 { 0% { transform: rotate(32deg) scaleX(0.1); opacity: 1; } 45% { transform: rotate(32deg) scaleX(1.08); opacity: 1; } 100% { transform: rotate(32deg) scaleX(1.24); opacity: 0; } }
+@keyframes monSlashIn { 0% { transform: rotate(-145deg) scaleX(0.1); opacity: 1; } 45% { transform: rotate(-145deg) scaleX(1.12); opacity: 1; } 100% { transform: rotate(-145deg) scaleX(1.28); opacity: 0; } }
+@keyframes monSlashIn2 { 0% { transform: rotate(-212deg) scaleX(0.1); opacity: 1; } 45% { transform: rotate(-212deg) scaleX(1.08); opacity: 1; } 100% { transform: rotate(-212deg) scaleX(1.24); opacity: 0; } }
+@keyframes sparkFly { 0% { transform: translate(0, 0) scale(1.1) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.25) rotate(180deg); opacity: 0; } }
+
+.scene-stage.shake-hit { animation: sceneShake 0.42s linear 0.62s both; }
+.scene-stage.shake-hero-hit { animation: sceneShake 0.40s linear 0.48s both; }
+@keyframes sceneShake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-5px, 2px); }
+  40% { transform: translate(4px, -3px); }
+  60% { transform: translate(-3px, 1px); }
+  80% { transform: translate(2px, -1px); }
+}
+
+/* ---------- Overrides for every anim-*.css file (must stay last) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .avatar-stack *, .mon-rig, .mon-rig *, .mon-act, .monster-shadow, .scene-stage.shake-hit {
+    animation-duration: 0.01s !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Small screens: keep the monster HUD compact so it doesn't cover the monster */
+@media (max-width: 520px) {
+  .mon-hud { top: 2%; padding: 5px 10px; width: 92%; }
+  .mon-hud .mon-title { font-size: 0.9rem; }
+  .mon-hud .mon-sub { display: none; }
+  .mon-hud .hp-track { height: 10px; }
+  .mon-hud .hp-text { font-size: 0.7rem; margin-top: 2px; }
+  .mon-hud .target-line { font-size: 0.66rem; padding: 2px 6px; margin-top: 3px; }
+}

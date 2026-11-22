@@ -1,0 +1,298 @@
+/* =====================================================================
+   Monster animation — rig layers, sprite glow effects, per-monster idle loop (.rig-<id>),
+   enter / lunge / multi-frame attacks / hurt / die / flee.
+   Battle timeline: wind-up 0–0.3s, the blow connects at 0.5s, recover by ~1.1s.
+   ===================================================================== */
+
+/* ---------- Monster rig ---------- */
+.monster-obj {
+  position: relative;
+  width: clamp(135px, 28vw, 220px);
+  z-index: 2;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.65));
+  --spd: 1;
+}
+.monster-obj.is-boss { width: clamp(175px, 34vw, 275px); }
+.monster-obj.rig-orc { width: clamp(118px, 24vw, 192px); }
+.monster-obj.rig-goblin { width: clamp(128px, 26vw, 205px); }
+.monster-obj.rig-slime  { aspect-ratio: 714 / 738; }
+.monster-obj.rig-goblin { aspect-ratio: 954 / 873; }
+.monster-obj.rig-fenrir { aspect-ratio: 969 / 741; }
+.monster-obj.rig-orc    { aspect-ratio: 854 / 920; }
+.monster-obj.rig-dragon { aspect-ratio: 1011 / 676; }
+.monster-obj.phase-2 { --spd: 0.8; }
+.monster-obj.phase-3 { --spd: 0.62; filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.7)) drop-shadow(0 6px 10px rgba(0, 0, 0, 0.65)); }
+.mon-base { position: relative; z-index: 2; display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.mon-idle-layer { position: relative; width: 100%; height: 100%; }
+.mon-atk-frame {
+  position: absolute; right: 0; bottom: 0; height: auto; max-width: none;
+  image-rendering: pixelated; pointer-events: none; opacity: 0; z-index: 8;
+}
+.mon-goblin .mon-atk-frame { width: 134%; right: -3.7%; bottom: -1.7%; }
+.mon-fenrir .mon-atk-frame { width: 126%; right: -2.1%; bottom: -2.7%; }
+.mon-orc    .mon-atk-frame { width: 142%; right: -2.9%; bottom: -1.3%; }
+.mon-dragon .mon-atk-frame { width: 134.5%; right: -4.0%; bottom: -14.8%; }
+.mon-part { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; }
+.mon-act { position: relative; transform-origin: 50% 100%; z-index: 2; }
+.monster-shadow {
+  width: 72%; height: 16px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45); margin-top: -10px; z-index: 1;
+}
+
+/* Glow & particle effects pinned to the sprite */
+.mon-fx { position: absolute; z-index: 6; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; mix-blend-mode: screen; }
+.fx-fire-glow { width: 14%; aspect-ratio: 1; background: radial-gradient(circle, rgba(255, 245, 180, 0.98), rgba(249, 115, 22, 0.72) 45%, transparent 72%); animation: fxPulse calc(0.9s * var(--spd)) ease-in-out infinite; }
+.fx-dragon-eye { width: 5.5%; aspect-ratio: 1; background: radial-gradient(circle, rgba(254, 240, 138, 0.95), rgba(249, 115, 22, 0.55) 50%, transparent 75%); animation: fxPulse calc(1.4s * var(--spd)) ease-in-out infinite; }
+.fx-eye-glow { width: 7%; aspect-ratio: 1; background: radial-gradient(circle, rgba(255, 120, 120, 0.95), rgba(239, 68, 68, 0.55) 45%, transparent 72%); animation: fxPulse 1.5s ease-in-out infinite; }
+.fx-eye-glow-2 { width: 5.5%; animation-delay: 0.2s; }
+.fx-gob-eye { width: 5%; aspect-ratio: 1; background: radial-gradient(circle, rgba(253, 224, 71, 0.95), rgba(245, 158, 11, 0.45) 50%, transparent 75%); animation: fxPulse 1.9s ease-in-out infinite; }
+.fx-orc-eye { width: 4.5%; aspect-ratio: 1; background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(239, 68, 68, 0.45) 55%, transparent 78%); animation: fxPulse 2.1s ease-in-out infinite; }
+.fx-blade-glint { width: 12%; height: 3%; border-radius: 99px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent); transform: translate(-50%, -50%) rotate(-38deg); animation: bladeGlint 3.1s ease-in-out infinite; }
+
+.fx-bubble { width: 6.5%; aspect-ratio: 1; background: radial-gradient(circle at 35% 35%, rgba(224, 242, 254, 0.95), rgba(34, 211, 238, 0.5) 55%, transparent 75%); border: 1px solid rgba(165, 243, 252, 0.6); animation: fxFloatUp 2.2s ease-out infinite; }
+.fx-bubble-2 { width: 5%; animation-duration: 2.7s; animation-delay: 0.8s; }
+.fx-bubble-3 { width: 4.5%; animation-duration: 2.0s; animation-delay: 1.4s; }
+
+.fx-mist { width: 10%; aspect-ratio: 1.4; background: radial-gradient(ellipse, rgba(203, 213, 225, 0.65), rgba(148, 163, 184, 0.25) 55%, transparent 75%); animation: fxMist 2.3s ease-out infinite; }
+.fx-mist-2 { width: 7.5%; animation-delay: 1.1s; }
+
+.fx-spark { width: 4.5%; aspect-ratio: 1; background: radial-gradient(circle, #fef08a, #f97316 55%, transparent 75%); animation: fxFloatUp 1.9s ease-out infinite; }
+.fx-spark-2 { width: 3.5%; animation-duration: 2.4s; animation-delay: 0.9s; }
+
+.fx-ember { width: 5%; aspect-ratio: 1; background: radial-gradient(circle, #fef9c3, #fb923c 45%, rgba(239, 68, 68, 0.2) 70%, transparent 78%); animation: fxFloatUp calc(1.7s * var(--spd)) ease-out infinite; }
+.fx-ember-2 { width: 4%; animation-duration: calc(2.1s * var(--spd)); animation-delay: 0.6s; }
+.fx-ember-3 { width: 4.5%; animation-duration: calc(1.9s * var(--spd)); animation-delay: 1.1s; }
+
+@keyframes fxPulse { 0%, 100% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.85); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); } }
+@keyframes fxFloatUp {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  20%  { opacity: 0.95; }
+  100% { opacity: 0; transform: translate(-50%, -32px) scale(1.05); }
+}
+@keyframes fxMist {
+  0%   { opacity: 0; transform: translate(-20%, -50%) scale(0.7); }
+  25%  { opacity: 0.65; }
+  100% { opacity: 0; transform: translate(-115%, -85%) scale(1.45); }
+}
+@keyframes bladeGlint {
+  0%, 72%, 100% { opacity: 0; transform: translate(-50%, -50%) rotate(-38deg) scaleX(0.4); }
+  84% { opacity: 0.95; transform: translate(-20%, -85%) rotate(-38deg) scaleX(1.2); }
+}
+
+/* Per-monster idle personality (paused once the monster is dying) */
+.rig-slime  { animation: slimeBounce calc(1.4s * var(--spd)) ease-in-out infinite; }
+.rig-slime .part-crown { animation: crownLag calc(1.4s * var(--spd)) ease-in-out infinite; }
+.rig-slime .part-blink { opacity: 0; animation: avBlink 3.8s steps(1, end) 0.4s infinite; }
+.shadow-slime { animation: shadowBounce 1.4s ease-in-out infinite; }
+
+.rig-goblin { animation: gobBob calc(1.15s * var(--spd)) ease-in-out infinite; }
+.rig-goblin .part-head { animation: gobHead calc(1.15s * var(--spd)) ease-in-out 0.1s infinite; }
+.rig-goblin .part-blade { animation: bladeSway calc(1.15s * var(--spd)) ease-in-out infinite; }
+
+.rig-fenrir { animation: fenBreath calc(1.6s * var(--spd)) ease-in-out infinite; }
+.rig-fenrir .part-tail { animation: tailWag calc(0.65s * var(--spd)) ease-in-out infinite alternate; }
+.rig-fenrir .part-head { animation: headSnarl calc(1.6s * var(--spd)) ease-in-out infinite; }
+
+.rig-orc { animation: orcSway calc(2.4s * var(--spd)) ease-in-out infinite; }
+.rig-orc .part-plume { animation: plumeWave calc(1.5s * var(--spd)) ease-in-out infinite; }
+.rig-orc .part-head { animation: orcHead calc(2.4s * var(--spd)) ease-in-out 0.12s infinite; }
+.rig-orc .part-club { animation: clubHeft calc(2.4s * var(--spd)) ease-in-out infinite; }
+
+.rig-dragon { animation: dragonHover calc(2.2s * var(--spd)) ease-in-out infinite; }
+.rig-dragon .part-wing-back { animation: wingBackFlap calc(0.95s * var(--spd)) ease-in-out 0.06s infinite; }
+.rig-dragon .part-wing-front { animation: wingFrontFlap calc(0.95s * var(--spd)) ease-in-out infinite; }
+.rig-dragon .part-head { animation: dragonHead calc(2.2s * var(--spd)) ease-in-out infinite; }
+.shadow-dragon { animation: shadowHover 2.2s ease-in-out infinite; }
+
+.anim-mon-dead .mon-rig, .anim-mon-dead .mon-part, .anim-mon-dead .mon-fx { animation-play-state: paused; }
+
+@keyframes slimeBounce {
+  0%, 100% { transform: translateY(0) scale(1.06, 0.94); }
+  32% { transform: translateY(-5%) scale(0.95, 1.06); }
+  50% { transform: translateY(-7%) scale(0.98, 1.03); }
+  70% { transform: translateY(-1%) scale(1, 1); }
+  84% { transform: translateY(0) scale(1.08, 0.92); }
+}
+@keyframes crownLag {
+  0%, 100% { transform: translateY(1%) rotate(0); }
+  32% { transform: translateY(0.2%) rotate(-2deg); }
+  55% { transform: translateY(1.4%) rotate(2deg); }
+  84% { transform: translateY(2.2%) rotate(-1deg); }
+}
+@keyframes shadowBounce { 0%, 84%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.78); opacity: 0.7; } }
+@keyframes gobBob {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  30% { transform: translateY(-2.5%) scaleY(1.02); }
+  65% { transform: translateY(-1%) scaleY(0.985); }
+}
+@keyframes gobHead { 0%, 100% { transform: rotate(0) translateY(0); } 45% { transform: rotate(-2deg) translateY(1.2%); } 75% { transform: rotate(1.5deg); } }
+@keyframes bladeSway { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-6deg); } 70% { transform: rotate(3.5deg); } }
+@keyframes fenBreath {
+  0%, 100% { transform: translateX(0) scale(1, 1); }
+  50% { transform: translateX(-1%) scale(1.014, 1.03); }
+}
+@keyframes tailWag { from { transform: rotate(-8deg); } to { transform: rotate(7deg); } }
+@keyframes headSnarl { 0%, 100% { transform: rotate(0); } 40% { transform: rotate(-2.8deg) translateY(-1%); } 65% { transform: rotate(1.2deg); } }
+@keyframes orcSway {
+  0%, 100% { transform: rotate(-1.2deg) scaleY(1); }
+  50% { transform: rotate(1.2deg) scaleY(0.978); }
+}
+@keyframes orcHead { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.8%) rotate(1.4deg); } }
+@keyframes plumeWave { 0%, 100% { transform: rotate(0) scaleX(1); } 50% { transform: rotate(5deg) scaleX(1.04); } }
+@keyframes clubHeft { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-7deg); } }
+@keyframes dragonHover {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-6%) rotate(-1deg); }
+}
+@keyframes wingBackFlap {
+  0%, 100% { transform: rotate(0) scaleY(1); }
+  45% { transform: rotate(-9deg) scaleY(0.8); }
+  65% { transform: rotate(4deg) scaleY(1.04); }
+}
+@keyframes wingFrontFlap {
+  0%, 100% { transform: rotate(0) scaleY(1); }
+  45% { transform: rotate(10deg) scaleY(0.76); }
+  65% { transform: rotate(-3deg) scaleY(1.03); }
+}
+@keyframes dragonHead {
+  0%, 100% { transform: rotate(0) translateY(0); }
+  45% { transform: rotate(-2.5deg) translateY(-1.2%); }
+  75% { transform: rotate(1.5deg) translateY(0.8%); }
+}
+@keyframes shadowHover { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.76); opacity: 0.65; } }
+
+/* ---------- Monster actions (on .mon-act so they stack on top of the idle loop) ---------- */
+.anim-mon-enter .mon-act { animation: monEnter 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.anim-mon-enter .monster-shadow { animation: shadowIn 0.9s ease-out both; }
+.anim-mon-lunge .mon-act { animation: monLunge 1.25s ease-in-out both; }
+.anim-mon-lunge.mon-slime .mon-act { animation: slimeSlamAtk 1.25s ease-in-out both; }
+
+/* 5-frame attack sequence (Goblin, Fenrir, Orc — 1.35s, blow connects at ~0.65s) */
+.anim-mon-lunge.seq-5f .mon-idle-layer { animation: atkHideIdle5 1.35s steps(1, end) both; }
+.anim-mon-lunge.seq-5f .atk-f-0 { animation: atk5f0 1.35s steps(1, end) both; }
+.anim-mon-lunge.seq-5f .atk-f-1 { animation: atk5f1 1.35s steps(1, end) both; }
+.anim-mon-lunge.seq-5f .atk-f-2 { animation: atk5f2 1.35s steps(1, end) both; }
+.anim-mon-lunge.seq-5f .atk-f-3 { animation: atk5f3 1.35s steps(1, end) both; }
+.anim-mon-lunge.seq-5f .atk-f-4 { animation: atk5f4 1.35s steps(1, end) both; }
+
+/* 6-frame attack sequence (Boss Dragon — 1.50s, fire erupts at ~0.68s) */
+.anim-mon-lunge.seq-6f .mon-idle-layer { animation: atkHideIdle6 1.50s steps(1, end) both; }
+.anim-mon-lunge.seq-6f .atk-f-0 { animation: atk6f0 1.50s steps(1, end) both; }
+.anim-mon-lunge.seq-6f .atk-f-1 { animation: atk6f1 1.50s steps(1, end) both; }
+.anim-mon-lunge.seq-6f .atk-f-2 { animation: atk6f2 1.50s steps(1, end) both; }
+.anim-mon-lunge.seq-6f .atk-f-3 { animation: atk6f3 1.50s steps(1, end) both; }
+.anim-mon-lunge.seq-6f .atk-f-4 { animation: atk6f4 1.50s steps(1, end) both; }
+.anim-mon-lunge.seq-6f .atk-f-5 { animation: atk6f5 1.50s steps(1, end) both; }
+
+.anim-mon-lunge.mon-goblin .mon-act { animation: gobDashAtk 1.35s ease-in-out both; }
+.anim-mon-lunge.mon-fenrir .mon-act { animation: fenPounceAtk 1.35s ease-in-out both; }
+.anim-mon-lunge.mon-orc .mon-act { animation: orcMarchAtk 1.35s ease-in-out both; }
+.anim-mon-lunge.mon-dragon .mon-act { animation: dragonRearBreath 1.50s ease-in-out both; }
+.anim-mon-hurt .mon-act { animation: monKnock 0.75s ease-out 0.5s both; }
+.anim-mon-dead .mon-act { animation: monDie 1.7s ease-in 0.5s both; }
+.anim-mon-dead .monster-shadow { animation: shadowOut 1.7s ease-in 0.5s both; }
+.anim-mon-dead .mon-act::after {
+  content: ""; position: absolute; left: 50%; bottom: 0; width: 90%; aspect-ratio: 2 / 1;
+  transform: translateX(-50%) scale(0); border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(226, 232, 240, 0.85), rgba(148, 163, 184, 0.5) 45%, transparent 70%);
+  animation: smokePuff 1.2s ease-out 1.2s both; pointer-events: none;
+}
+.anim-mon-flee .mon-act { animation: monFlee 1.8s ease-in 0.3s both; }
+.anim-mon-flee .monster-shadow { animation: shadowOut 1.8s ease-in 0.3s both; }
+
+@keyframes monEnter {
+  0%   { transform: translate(55%, -28%) scale(0.9, 1.1); opacity: 0; }
+  55%  { transform: translate(0, 0) scale(1.12, 0.86); opacity: 1; }
+  72%  { transform: translate(0, -3%) scale(0.95, 1.06); }
+  100% { transform: translate(0, 0) scale(1, 1); }
+}
+@keyframes shadowIn { 0% { transform: scaleX(0.2); opacity: 0; } 55% { transform: scaleX(1.15); opacity: 1; } 100% { transform: scaleX(1); } }
+@keyframes monLunge {
+  0%   { transform: translateX(0) scale(1, 1); }
+  28%  { transform: translateX(16px) scale(1.05, 0.93) rotate(3deg); }
+  46%  { transform: translateX(calc(var(--dash, 90px) * -1)) scale(1.08, 1.02) rotate(-4deg); }
+  54%  { transform: translateX(calc(var(--dash, 90px) * -0.9)) scale(1, 1) rotate(-2deg); }
+  100% { transform: translateX(0) scale(1, 1) rotate(0); }
+}
+@keyframes slimeSlamAtk {
+  0%   { transform: translate(0, 0) scale(1, 1); }
+  22%  { transform: translate(6px, 0) scale(1.2, 0.76); }
+  38%  { transform: translate(calc(var(--dash, 90px) * -0.65), -44px) scale(0.9, 1.16) rotate(-7deg); }
+  50%  { transform: translate(calc(var(--dash, 90px) * -1.0), 2px) scale(1.26, 0.72) rotate(-3deg); }
+  66%  { transform: translate(calc(var(--dash, 90px) * -0.45), -16px) scale(0.96, 1.06); }
+  100% { transform: translate(0, 0) scale(1, 1); }
+}
+@keyframes atkHideIdle5 { 0%, 7% { opacity: 1; } 8%, 87% { opacity: 0; } 88%, 100% { opacity: 1; } }
+@keyframes atk5f0 { 0%, 7% { opacity: 0; } 8%, 20%  { opacity: 1; } 21%, 100% { opacity: 0; } }
+@keyframes atk5f1 { 0%, 20% { opacity: 0; } 21%, 36% { opacity: 1; } 37%, 100% { opacity: 0; } }
+@keyframes atk5f2 { 0%, 36% { opacity: 0; } 37%, 47% { opacity: 1; } 48%, 100% { opacity: 0; } }
+@keyframes atk5f3 { 0%, 47% { opacity: 0; } 48%, 69% { opacity: 1; } 70%, 100% { opacity: 0; } }
+@keyframes atk5f4 { 0%, 69% { opacity: 0; } 70%, 87% { opacity: 1; } 88%, 100% { opacity: 0; } }
+
+@keyframes atkHideIdle6 { 0%, 6% { opacity: 1; } 7%, 90% { opacity: 0; } 91%, 100% { opacity: 1; } }
+@keyframes atk6f0 { 0%, 6% { opacity: 0; } 7%, 19%  { opacity: 1; } 20%, 100% { opacity: 0; } }
+@keyframes atk6f1 { 0%, 19% { opacity: 0; } 20%, 34% { opacity: 1; } 35%, 100% { opacity: 0; } }
+@keyframes atk6f2 { 0%, 34% { opacity: 0; } 35%, 45% { opacity: 1; } 46%, 100% { opacity: 0; } }
+@keyframes atk6f3 { 0%, 45% { opacity: 0; } 46%, 59% { opacity: 1; } 60%, 100% { opacity: 0; } }
+@keyframes atk6f4 { 0%, 59% { opacity: 0; } 60%, 75% { opacity: 1; } 76%, 100% { opacity: 0; } }
+@keyframes atk6f5 { 0%, 75% { opacity: 0; } 76%, 90% { opacity: 1; } 91%, 100% { opacity: 0; } }
+
+@keyframes gobDashAtk {
+  0%   { transform: translate(0, 0); }
+  18%  { transform: translate(8px, 0); }
+  42%  { transform: translate(calc(var(--dash, 90px) * -0.42), -6px); }
+  52%  { transform: translate(calc(var(--dash, 90px) * -0.56), 0); }
+  74%  { transform: translate(calc(var(--dash, 90px) * -0.40), 0); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes fenPounceAtk {
+  0%   { transform: translate(0, 0); }
+  18%  { transform: translate(10px, 2px); }
+  42%  { transform: translate(calc(var(--dash, 90px) * -0.52), -14px); }
+  52%  { transform: translate(calc(var(--dash, 90px) * -0.68), 0); }
+  74%  { transform: translate(calc(var(--dash, 90px) * -0.45), 0); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes orcMarchAtk {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(calc(var(--dash, 90px) * -0.18), -4px); }
+  40%  { transform: translate(calc(var(--dash, 90px) * -0.34), -8px); }
+  52%  { transform: translate(calc(var(--dash, 90px) * -0.52), 2px); }
+  74%  { transform: translate(calc(var(--dash, 90px) * -0.38), 0); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes dragonRearBreath {
+  0%   { transform: translate(0, 0) scale(1); }
+  18%  { transform: translate(4px, -4px) scale(1.02); }
+  38%  { transform: translate(0, -6px) scale(1.03); }
+  48%  { transform: translate(-12px, 0) scale(1.02); }
+  72%  { transform: translate(-10px, 0) scale(1.02); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes monKnock {
+  0%   { transform: translateX(0); filter: brightness(1); }
+  6%   { transform: translateX(10px) rotate(4deg); filter: brightness(3.2) saturate(0); }
+  16%  { transform: translateX(20px) rotate(7deg) scale(0.96, 1.03); filter: sepia(1) saturate(6) hue-rotate(-35deg); }
+  30%  { transform: translateX(12px) rotate(3deg); filter: brightness(1); }
+  42%  { transform: translateX(16px) rotate(4deg); filter: sepia(1) saturate(5) hue-rotate(-35deg); }
+  60%  { transform: translateX(4px) rotate(0); filter: brightness(1); }
+  100% { transform: translateX(0); }
+}
+@keyframes monDie {
+  0%   { transform: translateX(0); filter: none; opacity: 1; }
+  5%   { transform: translateX(12px) rotate(5deg); filter: brightness(3.2) saturate(0); }
+  14%  { transform: translateX(18px) rotate(8deg); filter: sepia(1) saturate(6) hue-rotate(-35deg); }
+  24%  { filter: brightness(3.2) saturate(0); }
+  34%  { transform: translateX(6px) rotate(-3deg); filter: none; }
+  48%  { transform: translateX(8px) rotate(2deg) scale(1, 1); filter: grayscale(0.6); }
+  100% { transform: translateX(10px) rotate(6deg) scale(1.25, 0.15); filter: grayscale(1) brightness(0.6); opacity: 0; }
+}
+@keyframes smokePuff { 0% { transform: translateX(-50%) scale(0.2); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(-50%) scale(1.5); opacity: 0; } }
+@keyframes shadowOut { 0%, 40% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(0.2); opacity: 0; } }
+@keyframes monFlee {
+  0%   { transform: translateX(0) scaleX(1); opacity: 1; }
+  18%  { transform: translateX(0) translateY(-4%) scaleX(-1); }
+  30%  { transform: translateX(10%) translateY(0) scaleX(-1); }
+  100% { transform: translateX(170%) scaleX(-1); opacity: 0; }
+}
