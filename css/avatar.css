@@ -1,0 +1,28 @@
+/* Avatar v2: extra layers (tails, capes, wings) and the companion pet */
+.avatar-stack .lyr-tail { transform-origin: 64% 80%; }
+.avatar-stack.is-idle .lyr-tail { animation: avTail 1.5s ease-in-out infinite; }
+.avatar-stack .lyr-cape { transform-origin: 50% 54%; }
+.avatar-stack.is-idle .lyr-cape { animation: avCape 2.4s ease-in-out infinite; }
+.avatar-stack .lyr-wings { transform-origin: 50% 62%; }
+.avatar-stack.is-idle .lyr-wings, .avatar-stack.is-walking .lyr-wings { animation: avWings 1.1s ease-in-out infinite; }
+@keyframes avTail { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-7deg); } }
+@keyframes avCape { 0%, 100% { transform: skewX(0); } 50% { transform: skewX(-2.5deg) translateX(1%); } }
+@keyframes avWings { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.9) translateY(-1%); } }
+
+.av-pet {
+  position: absolute; left: -26%; bottom: 4%; width: 36%; height: auto;
+  image-rendering: pixelated; pointer-events: none; z-index: 3;
+  animation: petFloat 1.7s ease-in-out infinite;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.35));
+}
+.av-pet.pet-wisp, .av-pet.pet-owl, .av-pet.pet-dragon { bottom: 34%; animation-duration: 2.1s; }
+.av-pet.pet-wisp { filter: drop-shadow(0 0 6px rgba(251, 146, 60, 0.8)); }
+@keyframes petFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14%); } }
+.anim-atk .av-pet { animation: petCheer 0.9s ease-out both; }
+@keyframes petCheer { 0% { transform: translateY(0); } 40% { transform: translateY(-40%) rotate(-8deg); } 100% { transform: translateY(0); } }
+.anim-hurt .av-pet { animation: petScared 0.8s ease-out 0.55s both; }
+@keyframes petScared { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-18%) scale(0.92); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .av-pet, .avatar-stack .lyr-tail, .avatar-stack .lyr-cape, .avatar-stack .lyr-wings { animation: none !important; }
+}

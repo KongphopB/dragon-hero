@@ -15,7 +15,8 @@ dragon hero/
 ├─ ARCHITECTURE.md         # This file
 ├─ css/
 │  ├─ theme.css            # Colors, buttons, cards, FBD board
-│  ├─ creator.css          # Character creator: live preview stage, hair/hat pickers, job cards
+│  ├─ creator.css          # Character creator: preview stage, tabs, cropped option thumbnails
+│  ├─ avatar.css           # Avatar extras: tail/cape/wing motion, companion pet
 │  ├─ animation-rig.css    # Character idle/attack/hurt, monster rigs, impact effects
 │  ├─ systems.css          # Mute, exhausted state, boss phase-up, resume banner, send-to-teacher, tutorial
 │  ├─ tactics.css          # Monster intent bar, card hand, ultimate gauge, card draft, card/ultimate battle effects
@@ -24,6 +25,8 @@ dragon hero/
 │  ├─ data/                # Static game data (no logic, no DOM)
 │  │  ├─ characters.js     # FORCES, JOBS, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, HATS
 │  │  ├─ tactics.js        # CARDS, CARD_MULT, INTENTS, MONSTER_INTENTS, ULTIMATES (numbers and words only)
+│  │  ├─ avatar-sprites.js # GENERATED: every avatar part as an embedded PNG + colour palettes
+│  │  ├─ avatar-catalog.js # Creator options (races, faces, 20 hair, 13 outfits, hats, extras, pets), unlocks, old-look migration
 │  │  ├─ mistakes.js       # MISTAKE_META, TOPIC_LABELS
 │  │  ├─ stages.js         # STAGES (5 stages -> Slime, Goblin, Fenrir, Orc, Dragon Boss)
 │  │  ├─ monster-rigs.js   # Per monster: body/part sprites (assets/monsters/parts), pivots, attack frame sequence
@@ -31,9 +34,12 @@ dragon hero/
 │  ├─ core/                # Pure game logic (no DOM rendering)
 │  │  ├─ grading.js        # gradeAnswer(q, place) -> acc, outcome, codes, rows
 │  │  ├─ adaptive.js       # Picks next question weighted toward the player's frequent mistakes
+│  │  ├─ unlocks.js        # Cosmetic unlocks earned at the end of a run (localStorage)
 │  │  └─ game.js           # State machine, timers, tactic cards, damage, hearts
 │  ├─ ui/                  # DOM & SVG rendering only
-│  │  ├─ avatar.js         # Composes layered 48x48 PNG character parts (Option C)
+│  │  ├─ avatar-color.js   # Recolours avatar sprites at runtime (same colour-ramp maths as the generator)
+│  │  ├─ avatar.js         # Stacks the recoloured avatar layers (+ pet) for every scene
+│  │  ├─ creator.js        # Tabbed character creator
 │  │  ├─ fbd-board.js      # Drag-and-drop FBD & cos/sin vector board
 │  │  ├─ screens.js        # Renders each game phase screen
 │  │  └─ tutorial.js       # First-time guided practice (2 boards + cards/hearts explainer)
@@ -51,7 +57,7 @@ dragon hero/
 1. **Add or edit questions:** Edit `js/data/questions.js` only.
 2. **Adjust monster HP / stage count / base damage:** Edit `js/data/stages.js` only.
 3. **Adjust grading rules or mistake codes:** Edit `js/core/grading.js` (and `js/data/mistakes.js` for labels/tips).
-4. **Update character visuals:** Swap/add 48×48 transparent PNGs in `assets/characters/parts/` (layer order in `js/ui/avatar.js`: `weapons/*_back` → `body` → `outfits` → `hair` → `hats` → `weapons/*`).
+4. **Update character visuals:** edit the generator in `tools/avatar/` and rerun it (see rule 14). `assets/characters/parts/` only feeds the generator (weapons) and is no longer loaded by the game.
 5. **Keep `file://` compatibility:** Do not introduce `import`/`export` or `fetch()` for local files in the single-player game.
 6. **Backgrounds & monster sprites are WebP** (`assets/bg/*.webp`, `assets/monsters/*.webp`, quality 95) to keep the page light on phones. Convert new art to WebP before adding it; character parts stay 48×48 PNG.
 7. **Hosting:** the single-player game is a static site published with GitHub Pages from `main` (repo root). Every push to `main` updates the live link, so keep `main` playable.
@@ -61,3 +67,4 @@ dragon hero/
 11. **Saved runs:** an in-progress solo run is saved to `localStorage` (`dh_solo_run`) on every screen change and about once a second while a timer runs, and offered back on the start screen for 3 days. Keep any new fields on the game state `g` JSON-serialisable.
 12. **Hearts:** wrong answers (<50%) cost a heart; at 0 hearts the hero is exhausted and deals ×0.5 damage (`EXHAUSTED_MULT` in `js/core/game.js`) until healed or the next stage.
 13. **Tactic system:** each question the monster rolls an intent (`MONSTER_INTENTS` weights per monster, shown before answering). The player may play one card and, when the gauge is full, the job ultimate. All rules resolve in `submitAnswer` in `js/core/game.js`; add or rebalance cards/intents/ultimates in `js/data/tactics.js`. Cards are gained only from the pick-one draft after a monster falls (mage sees 4). Study cards (x-ray, cut, protractor) work through `FBD.mount` options `overlayArrows`, `hideDecoys`, `angleGuides`.
+14. **Avatar art pipeline:** characters are generated, not hand-drawn PNGs. `python tools/avatar/build_parts.py` draws every part as smooth shapes at 8x (`tools/avatar/shapes.py`), lights them (`hires.py`), reduces them to 48x48 pixel art with colour-key pixels, and writes them all into `js/data/avatar-sprites.js` (add `--preview` for `tools/avatar/preview.png`). The game swaps the key colours for the player's skin/hair/main/trim choice in `js/ui/avatar-color.js`, whose `ramp()` must stay in step with `tools/avatar/shade.py`. Sprites are embedded as data URLs so recolouring also works when `index.html` is opened from disk. To add a hairstyle or outfit: add a function in `shapes.py`, rerun the generator, and list it in `js/data/avatar-catalog.js`.

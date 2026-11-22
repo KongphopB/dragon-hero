@@ -7,6 +7,11 @@
     look: { skin: 0, hair: 1, hairColor: 0, outfit: 0, hat: 0 },
     timed: true
   };
+  // Characters saved before the v2 creator get upgraded to the new look format once.
+  if (DH.AVATAR && (!charDraft.look || charDraft.look.v !== 2)) {
+    charDraft.look = DH.AVATAR.normalize(charDraft.look, charDraft.job);
+    try { localStorage.setItem("dh_solo_char", JSON.stringify(charDraft)); } catch (e) { /* ignore */ }
+  }
 
   var g = null;
   var tmr = null;
@@ -327,6 +332,7 @@
     dmg += meteor;
 
     g.hearts = Math.max(0, g.hearts - lost);
+    g.heartsLost = (g.heartsLost || 0) + lost;
 
     g.score += dmg;
     g.accSum += res.acc;

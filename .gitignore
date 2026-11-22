@@ -13,3 +13,7 @@ node_modules/
 
 # Teacher-uploaded custom assets in the multiplayer prototype
 multiplayer/public/assets/custom/
+
+# Avatar generator scratch output
+tools/avatar/out/
+tools/avatar/__pycache__/

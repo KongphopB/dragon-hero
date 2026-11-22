@@ -44,7 +44,9 @@
   </div>
 
   <script src="js/data/characters.js?v=4"></script>
-  <script src="js/data/tactics.js?v=11"></script>
+  <script src="js/data/tactics.js?v=12"></script>
+  <script src="js/data/avatar-sprites.js?v=12"></script>
+  <script src="js/data/avatar-catalog.js?v=12"></script>
   <script src="js/data/mistakes.js?v=4"></script>
   <script src="js/data/stages.js?v=4"></script>
   <script src="js/data/monster-rigs.js?v=7"></script>
@@ -52,8 +54,10 @@
   <script src="js/sfx.js?v=4"></script>
   <script src="js/core/grading.js?v=4"></script>
   <script src="js/core/adaptive.js?v=4"></script>
+  <script src="js/core/unlocks.js?v=12"></script>
   <script src="js/core/game.js?v=4"></script>
-  <script src="js/ui/avatar.js?v=4"></script>
+  <script src="js/ui/avatar-color.js?v=12"></script>
+  <script src="js/ui/avatar.js?v=12"></script>
   <script src="js/ui/fbd-board.js?v=4"></script>
   <script src="js/ui/screens.js?v=9"></script>
   <script>
@@ -273,7 +277,7 @@
       document.querySelectorAll(".dbg-tab").forEach(function (b) {
         b.onclick = function () { tab = b.dataset.tab; render(); };
       });
-      render();
+      DH.AvatarColor.ready.then(render); // avatar sprites are recoloured once decoded
     })();
   </script>
 </body>

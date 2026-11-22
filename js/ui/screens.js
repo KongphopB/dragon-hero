@@ -45,210 +45,6 @@
     '</div>';
   }
 
-  // ---------- Character creator ----------
-  // Built once; each change only redraws the pieces that depend on it, so the page never jumps or flickers.
-  var creator = { back: false, demoTimer: null, shuffleTimer: null };
-
-  function swatchRow(list, key, current) {
-    return list.map(function (c, i) {
-      return '<button type="button" class="swatch ' + (current === i ? "on" : "") + '" data-' + key + '="' + i + '" style="background:' + c + '" aria-label="' + key + ' ' + (i + 1) + '"></button>';
-    }).join("");
-  }
-
-  function creatorPreviewHtml(charDraft) {
-    return '<div class="cc-actor">' + DH.Avatar.render(charDraft.look, charDraft.job, { xl: true, backView: creator.back }) + '</div>';
-  }
-
-  function creatorJobInfoHtml(charDraft) {
-    var j = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
-    return '<div class="cc-job-name">' + j.icon + ' ' + j.name + '</div>' +
-      '<div class="cc-job-passive">' + DH.esc(j.passive) + '</div>' +
-      '<div class="cc-job-card">การ์ดติดตัว: ' + DH.CARDS[j.startCard].icon + ' ' + DH.CARDS[j.startCard].name + '</div>';
-  }
-
-  function creatorJobsHtml(charDraft) {
-    return Object.keys(DH.JOBS).map(function (jk) {
-      var jb = DH.JOBS[jk];
-      return '<button type="button" class="job-opt ' + (charDraft.job === jk ? "on" : "") + '" data-job="' + jk + '">' +
-        '<span class="job-thumb">' + DH.Avatar.render(charDraft.look, jk, { still: charDraft.job !== jk }) + '</span>' +
-        '<span class="job-text"><b>' + jb.icon + ' ' + jb.name + '</b>' +
-        '<span class="job-passive">' + DH.esc(jb.passive) + '</span></span>' +
-      '</button>';
-    }).join("");
-  }
-
-  // Head-and-shoulders thumbnails showing the player's own face with each option applied.
-  function creatorPickerHtml(charDraft, field, count, labels) {
-    var html = "";
-    for (var i = 0; i < count; i++) {
-      var look = {};
-      Object.keys(charDraft.look).forEach(function (k) { look[k] = charDraft.look[k]; });
-      look[field] = i;
-      if (field === "hair") look.hat = 0; // show the hairstyle itself, not a hat over it
-      var on = (charDraft.look[field] || 0) === i;
-      html += '<button type="button" class="pick-thumb ' + (on ? "on" : "") + '" data-' + field + '="' + i + '" title="' + DH.esc(labels ? labels[i] : "แบบที่ " + (i + 1)) + '">' +
-        '<span class="pick-crop">' + DH.Avatar.render(look, charDraft.job, { still: true }) + '</span>' +
-        (labels ? '<span class="pick-lbl">' + DH.esc(labels[i]) + '</span>' : '') +
-      '</button>';
-    }
-    return html;
-  }
-
-  function refreshCreator(what) {
-    var charDraft = DH.Game.getChar();
-    var $ = function (id) { return document.getElementById(id); };
-    if (!$("ccPreview")) return;
-    $("ccPreview").innerHTML = creatorPreviewHtml(charDraft);
-    $("ccJobInfo").innerHTML = creatorJobInfoHtml(charDraft);
-    $("ccJobs").innerHTML = creatorJobsHtml(charDraft);
-    $("ccHair").innerHTML = creatorPickerHtml(charDraft, "hair", 6);
-    $("ccHat").innerHTML = creatorPickerHtml(charDraft, "hat", 6, DH.HATS);
-    $("ccSkin").innerHTML = swatchRow(DH.SKIN_TONES, "skin", charDraft.look.skin);
-    $("ccHairColor").innerHTML = swatchRow(DH.HAIR_COLORS, "hc", charDraft.look.hairColor);
-    $("ccOutfit").innerHTML = swatchRow(DH.OUTFIT_COLORS, "oc", charDraft.look.outfit);
-    var stage = $("ccStage");
-    if (what !== "quiet") {
-      stage.classList.remove("cc-pop");
-      void stage.offsetWidth; // restart the pop animation
-      stage.classList.add("cc-pop");
-    }
-    if (what === "job") playJobDemo(charDraft.job);
-  }
-
-  // Selecting a job shows that job's attack once, so players see what they picked.
-  function playJobDemo(job) {
-    var actor = document.querySelector("#ccPreview .cc-actor");
-    if (!actor) return;
-    clearTimeout(creator.demoTimer);
-    actor.className = "cc-actor actor-unit anim-atk atk-" + DH.Avatar.attackStyle(job);
-    creator.demoTimer = setTimeout(function () {
-      if (actor.isConnected) actor.className = "cc-actor";
-    }, 1000);
-  }
-
-  function resumeBannerHtml() {
-    var saved = DH.Game.getSavedRun();
-    if (!saved) return "";
-    var sg = saved.g;
-    var st = DH.STAGES[sg.stageIdx] || {};
-    var mins = Math.max(1, Math.round((Date.now() - saved.savedAt) / 60000));
-    var ago = mins < 60 ? mins + " นาทีที่แล้ว" : Math.round(mins / 60) + " ชั่วโมงที่แล้ว";
-    return '<div class="resume-banner" id="ccResume">' +
-      '<div><b>⏸ มีเกมที่เล่นค้างไว้</b><br><span>ด่าน ' + (sg.stageIdx + 1) + '/' + DH.STAGES.length + ' · ' + DH.esc((st.name || "").split(" (")[0]) + ' · ⚔️ ' + sg.score + ' · ' + ago + '</span></div>' +
-      '<div class="resume-actions">' +
-        '<button type="button" class="btn-pri" id="btnResume">▶ เล่นต่อ</button>' +
-        '<button type="button" class="btn-sec" id="btnDiscard">ทิ้ง</button>' +
-      '</div>' +
-    '</div>';
-  }
-
-  function renderCharCreate() {
-    var charDraft = DH.Game.getChar();
-    creator.back = false;
-    ensureApp().innerHTML =
-      '<div class="rpg-card cc-card">' +
-        '<div class="cc-head">' +
-          '<h2>🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
-          '<span><button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' + muteButtonHtml() + '</span>' +
-        '</div>' +
-        '<p class="cc-intro">ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!</p>' +
-        resumeBannerHtml() +
-        '<div class="cc-top">' +
-          '<div class="cc-stage" id="ccStage">' +
-            '<img class="cc-stage-bg" src="assets/bg/bg_plaza.webp" alt="">' +
-            '<div class="cc-spot"></div>' +
-            '<div id="ccPreview" style="--dash:34px"></div>' +
-            '<button type="button" class="cc-turn" id="btnTurn" title="หมุนดูด้านหลัง">🔄</button>' +
-          '</div>' +
-          '<div class="cc-side">' +
-            '<label class="cc-lbl" for="inpName">ชื่อนักผจญภัย</label>' +
-            '<input id="inpName" class="cc-name" value="' + DH.esc(charDraft.name) + '" maxlength="18" autocomplete="off">' +
-            '<div id="ccJobInfo" class="cc-job-info"></div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="cc-section">1. เลือกอาชีพ <span>แตะเพื่อดูท่าโจมตี</span></div>' +
-        '<div class="job-grid" id="ccJobs"></div>' +
-        '<div class="cc-section">2. ปรับแต่งตัวละคร</div>' +
-        '<div class="cust-box">' +
-          '<div class="cust-row"><span class="cust-lbl">🧑 สีผิว</span><div class="swatch-row" id="ccSkin"></div></div>' +
-          '<div class="cust-row cust-col"><span class="cust-lbl">💇 ทรงผม</span><div class="pick-row" id="ccHair"></div></div>' +
-          '<div class="cust-row"><span class="cust-lbl">🎨 สีผม</span><div class="swatch-row" id="ccHairColor"></div></div>' +
-          '<div class="cust-row"><span class="cust-lbl">👕 สีชุด</span><div class="swatch-row" id="ccOutfit"></div></div>' +
-          '<div class="cust-row cust-col"><span class="cust-lbl">🎩 หมวก</span><div class="pick-row" id="ccHat"></div></div>' +
-        '</div>' +
-        '<label class="cc-timed">' +
-          '<input type="checkbox" id="chkTimed" ' + (charDraft.timed ? "checked" : "") + '> จับเวลาขณะทำโจทย์ (แนะนำ)' +
-        '</label>' +
-        '<button type="button" class="btn-pri" id="btnStartSolo" style="width:100%">⛲ เข้าลานน้ำพุกลางเมือง ▶</button>' +
-      '</div>';
-
-    refreshCreator("quiet");
-
-    if (document.getElementById("btnResume")) {
-      document.getElementById("btnResume").onclick = function () { DH.Game.resumeRun(); };
-      document.getElementById("btnDiscard").onclick = function () {
-        DH.Game.discardSavedRun();
-        var b = document.getElementById("ccResume");
-        if (b) b.remove();
-      };
-    }
-
-    var card = ensureApp().querySelector(".cc-card");
-    var change = function (fn, what) { fn(); DH.Game.saveChar(); refreshCreator(what); };
-    // One delegated handler: the option buttons are redrawn on every change.
-    card.addEventListener("click", function (e) {
-      var b = e.target.closest("button");
-      if (!b || !card.contains(b)) return;
-      var d = b.dataset;
-      if (d.job) change(function () { charDraft.job = d.job; }, "job");
-      else if (d.skin) change(function () { charDraft.look.skin = +d.skin; });
-      else if (d.hc) change(function () { charDraft.look.hairColor = +d.hc; });
-      else if (d.oc) change(function () { charDraft.look.outfit = +d.oc; });
-      else if (d.hair) change(function () { charDraft.look.hair = +d.hair; });
-      else if (d.hat) change(function () { charDraft.look.hat = +d.hat; });
-    });
-    document.getElementById("btnTurn").onclick = function () {
-      creator.back = !creator.back;
-      refreshCreator();
-    };
-    document.getElementById("inpName").oninput = function (e) { charDraft.name = e.target.value; DH.Game.saveChar(); };
-    document.getElementById("chkTimed").onchange = function (e) { charDraft.timed = e.target.checked; DH.Game.saveChar(); };
-    document.getElementById("btnRand").onclick = function () {
-      // Slot-machine shuffle: flick through a few random looks, then settle.
-      var jks = Object.keys(DH.JOBS);
-      var rnd = function (n) { return Math.floor(Math.random() * n); };
-      var ticks = 0;
-      clearInterval(creator.shuffleTimer);
-      creator.back = false;
-      creator.shuffleTimer = setInterval(function () {
-        if (!document.getElementById("ccPreview")) { clearInterval(creator.shuffleTimer); return; }
-        charDraft.job = jks[rnd(jks.length)];
-        charDraft.look = {
-          skin: rnd(DH.SKIN_TONES.length),
-          hair: rnd(6),
-          hairColor: rnd(DH.HAIR_COLORS.length),
-          outfit: rnd(DH.OUTFIT_COLORS.length),
-          hat: rnd(6)
-        };
-        ticks++;
-        if (ticks >= 8) {
-          clearInterval(creator.shuffleTimer);
-          DH.Game.saveChar();
-          refreshCreator("job");
-        } else {
-          refreshCreator("quiet");
-        }
-      }, 70);
-    };
-    document.getElementById("btnStartSolo").onclick = function () {
-      clearInterval(creator.shuffleTimer);
-      charDraft.name = (document.getElementById("inpName").value || "").trim() || "นักผจญภัย";
-      DH.Game.saveChar();
-      DH.SFX.join();
-      DH.Game.enterLobby();
-    };
-  }
-
   function hudBar(g, charDraft) {
     var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
     var hs = "";
@@ -417,6 +213,15 @@
     return lines.length ? '<ul class="tactic-log">' + lines.join("") + '</ul>' : "";
   }
 
+  function unlocksHtml(g) {
+    var fresh = DH.Unlocks.evaluate(g);
+    if (!fresh.length) return "";
+    return '<div class="unlock-banner"><b>🔓 ปลดล็อกของใหม่!</b>' + fresh.map(function (id) {
+      var u = DH.AVATAR.unlocks[id];
+      return '<div>✨ ' + DH.esc(u.name) + ' <span>(' + DH.esc(u.how) + ')</span></div>';
+    }).join("") + '<div class="unlock-tip">ไปเลือกใส่ได้ที่หน้าสร้างตัวละคร</div></div>';
+  }
+
   // Plain-text result a student can paste into LINE / Google Form for the teacher.
   function resultText(g, charDraft) {
     var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
@@ -555,7 +360,7 @@
 
   function render() {
     var g = DH.Game.getState();
-    if (!g) { renderCharCreate(); return; }
+    if (!g) { DH.Creator.render(); return; }
     var charDraft = DH.Game.getChar();
     var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
     var body = "";
@@ -781,6 +586,7 @@
               '<b>' + st.ok + '/' + st.total + ' (' + Math.round(100 * st.ok / st.total) + '%)</b></div>';
           }).join("") +
           progressHtml(g) +
+          unlocksHtml(g) +
           '<div class="send-teacher">' +
             '<div class="send-title">📨 ส่งผลให้ครู</div>' +
             '<pre class="send-preview" id="resultText">' + DH.esc(resultText(g, charDraft)) + '</pre>' +
@@ -924,6 +730,7 @@
     render: render,
     updateTimer: updateTimer,
     monsterHtml: monsterObjectHtml,
+    muteButtonHtml: muteButtonHtml,
     setDashDistance: setDashDistance
   };
 })(window);

@@ -17,7 +17,8 @@
   });
 
   DH.Game.setCallbacks(DH.Screens.render, DH.Screens.updateTimer);
-  DH.Screens.render();
+  // Avatar sprites are recoloured on a canvas, so wait until they are decoded (a few ms).
+  DH.AvatarColor.ready.then(function () { DH.Screens.render(); });
 
   // Warm the cache with every stage's art after the first screen is up, so monsters, their moving
   // parts and attack frames don't pop in late on slow classroom Wi-Fi.
