@@ -10,6 +10,11 @@
 
   var g = null;
   var tmr = null;
+  var EXHAUSTED_MULT = 0.5;
+  var SAVE_KEY = "dh_solo_run";
+  // Phases worth resuming after a refresh; LOBBY/SUMMARY just start fresh.
+  var RESUMABLE = ["INTRO", "ENCOUNTER", "QUESTION", "REVEAL", "BATTLE", "MON_DEFEAT", "MON_ESCAPE", "VICTORY", "DEFEAT"];
+  var lastSave = 0;
   var onRender = function () {};
   var onTick = function () {};
 
@@ -117,7 +122,9 @@
       lastRes: null,
       revLeft: 10,
       revPaused: false,
-      defeatFate: Math.random() < 0.5 ? "burn" : "eat"
+      defeatFate: Math.random() < 0.5 ? "burn" : "eat",
+      result: null,
+      startedAt: Date.now()
     };
     initStage(startStageIdx);
     if (startStageIdx > 0) {
@@ -161,6 +168,11 @@
     g.magnifierMsg = "";
     g.secondChanceMsg = "";
     onRender();
+    runQuestionTimer();
+  }
+
+  function runQuestionTimer() {
+    stopTimer();
     if (charDraft.timed) {
       tmr = setInterval(function () {
         if (!g || g.phase !== "QUESTION") { stopTimer(); return; }
@@ -238,6 +250,9 @@
       if (res.acc >= 0.5) dmg = Math.round(base * res.acc * sSpeed * mClass * mc * mStreak);
     }
 
+    // Out of hearts = exhausted: every hit does half damage until a heal or the next stage.
+    var exhausted = g.hearts <= 0;
+    if (exhausted && dmg > 0) dmg = Math.round(dmg * EXHAUSTED_MULT);
     if (card === "heal" && res.acc >= 0.5 && g.hearts < g.maxHearts) g.hearts++;
     if (res.acc < 0.5 && !shieldSaved) g.hearts = Math.max(0, g.hearts - 1);
 
@@ -263,8 +278,10 @@
       g.cards.push(cardEarned);
     }
 
+    var prevPhase = g.monster.phase;
     if (dmg > 0) g.monster.hp = Math.max(0, g.monster.hp - dmg);
     updateBossPhase();
+    var phaseUp = g.monster.isBoss && g.monster.hp > 0 && g.monster.phase > prevPhase ? g.monster.phase : 0;
 
     g.lastRes = {
       timedOut: !!timedOut,
@@ -275,6 +292,9 @@
       rows: res.rows,
       card: card,
       cardEarned: cardEarned,
+      exhausted: exhausted,
+      nowExhausted: g.hearts <= 0,
+      phaseUp: phaseUp,
       place: place,
       q: q
     };
@@ -283,6 +303,11 @@
     g.revLeft = 10;
     g.revPaused = false;
     onRender();
+    runRevealTimer();
+  }
+
+  function runRevealTimer() {
+    stopTimer();
     tmr = setInterval(function () {
       if (!g || g.phase !== "REVEAL") { stopTimer(); return; }
       if (g.revPaused) { onTick(); return; }
@@ -297,13 +322,14 @@
     g.phase = "BATTLE";
     var out = g.lastRes.outcome;
     if (out === "correct" || out === "partial") DH.SFX.hit(); else DH.SFX.hurt();
+    if (g.lastRes.phaseUp) setTimeout(function () { if (g && g.phase === "BATTLE") DH.SFX.roar(); }, 1150);
     onRender();
   }
 
   function afterBattle() {
     var m = g.monster;
     if (m.hp <= 0) {
-      if (m.isBoss) { g.phase = "VICTORY"; DH.SFX.win(); onRender(); return; }
+      if (m.isBoss) { g.phase = "VICTORY"; g.result = "win"; DH.SFX.win(); onRender(); return; }
       if (g.cards.length < 3) g.cards.push(DH.ALL_CARDS[Math.floor(Math.random() * DH.ALL_CARDS.length)]);
       if (charDraft.job === "mage" && g.cards.length < 3) g.cards.push(DH.ALL_CARDS[Math.floor(Math.random() * DH.ALL_CARDS.length)]);
       g.phase = "MON_DEFEAT";
@@ -311,7 +337,7 @@
       return;
     }
     if (g.qInStage >= m.count) {
-      if (m.isBoss) { g.phase = "DEFEAT"; DH.SFX.lose(); onRender(); return; }
+      if (m.isBoss) { g.phase = "DEFEAT"; g.result = "lose"; DH.SFX.lose(); onRender(); return; }
       g.bossBonusHp += m.hp;
       g.phase = "MON_ESCAPE";
       onRender();
@@ -331,11 +357,57 @@
     }
   }
 
+  // ---------- Save / resume (a phone reload must not wipe a 15-minute run) ----------
+  function saveRun(force) {
+    try {
+      if (!g || g.tutorial || RESUMABLE.indexOf(g.phase) < 0) {
+        if (!g || g.phase === "SUMMARY" || g.phase === "LOBBY") localStorage.removeItem(SAVE_KEY);
+        return;
+      }
+      var now = Date.now();
+      if (!force && now - lastSave < 1000) return;
+      lastSave = now;
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: now, g: g }));
+    } catch (e) { /* storage full or blocked: the game still works, it just won't resume */ }
+  }
+
+  function getSavedRun() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+      if (!raw || raw.v !== 1 || !raw.g || RESUMABLE.indexOf(raw.g.phase) < 0) return null;
+      if (Date.now() - raw.savedAt > 3 * 24 * 3600 * 1000) return null; // stale after 3 days
+      return raw;
+    } catch (e) { return null; }
+  }
+
+  function discardSavedRun() {
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+  }
+
+  function resumeRun() {
+    var raw = getSavedRun();
+    if (!raw) return false;
+    stopTimer();
+    g = raw.g;
+    if (g.phase === "INTRO") { enterEncounter(); return true; }
+    onRender();
+    if (g.phase === "QUESTION") runQuestionTimer();
+    else if (g.phase === "REVEAL") runRevealTimer();
+    return true;
+  }
+
   DH.Game = {
     getChar: function () { return charDraft; },
     saveChar: saveChar,
     getState: function () { return g; },
-    setCallbacks: function (renderCb, tickCb) { onRender = renderCb; onTick = tickCb; },
+    setCallbacks: function (renderCb, tickCb) {
+      onRender = function () { saveRun(true); renderCb(); };
+      onTick = function () { saveRun(false); tickCb(); };
+    },
+    getSavedRun: getSavedRun,
+    discardSavedRun: discardSavedRun,
+    resumeRun: resumeRun,
+    exhaustedMult: EXHAUSTED_MULT,
     enterLobby: enterLobby,
     newRun: newRun,
     enterEncounter: enterEncounter,
@@ -347,6 +419,6 @@
     nextStage: nextStage,
     toggleRevPause: function () { if (g) { g.revPaused = !g.revPaused; onRender(); } },
     goSummary: function () { if (g) { g.phase = "SUMMARY"; onRender(); } },
-    resetToCreate: function () { stopTimer(); g = null; onRender(); }
+    resetToCreate: function () { stopTimer(); g = null; discardSavedRun(); onRender(); }
   };
 })(window);

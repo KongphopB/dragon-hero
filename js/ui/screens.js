@@ -126,6 +126,22 @@
     }, 1000);
   }
 
+  function resumeBannerHtml() {
+    var saved = DH.Game.getSavedRun();
+    if (!saved) return "";
+    var sg = saved.g;
+    var st = DH.STAGES[sg.stageIdx] || {};
+    var mins = Math.max(1, Math.round((Date.now() - saved.savedAt) / 60000));
+    var ago = mins < 60 ? mins + " นาทีที่แล้ว" : Math.round(mins / 60) + " ชั่วโมงที่แล้ว";
+    return '<div class="resume-banner" id="ccResume">' +
+      '<div><b>⏸ มีเกมที่เล่นค้างไว้</b><br><span>ด่าน ' + (sg.stageIdx + 1) + '/' + DH.STAGES.length + ' · ' + DH.esc((st.name || "").split(" (")[0]) + ' · ⚔️ ' + sg.score + ' · ' + ago + '</span></div>' +
+      '<div class="resume-actions">' +
+        '<button type="button" class="btn-pri" id="btnResume">▶ เล่นต่อ</button>' +
+        '<button type="button" class="btn-sec" id="btnDiscard">ทิ้ง</button>' +
+      '</div>' +
+    '</div>';
+  }
+
   function renderCharCreate() {
     var charDraft = DH.Game.getChar();
     creator.back = false;
@@ -133,9 +149,10 @@
       '<div class="rpg-card cc-card">' +
         '<div class="cc-head">' +
           '<h2>🐉 Dragon Hero: ผจญภัยเดี่ยว</h2>' +
-          '<button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' +
+          '<span><button type="button" class="btn-sec" id="btnRand">🎲 สุ่มทั้งหมด</button>' + muteButtonHtml() + '</span>' +
         '</div>' +
         '<p class="cc-intro">ตั้งชื่อ เลือกอาชีพ แล้วปรับแต่งตัวละครของคุณก่อนออกเดินทาง!</p>' +
+        resumeBannerHtml() +
         '<div class="cc-top">' +
           '<div class="cc-stage" id="ccStage">' +
             '<img class="cc-stage-bg" src="assets/bg/bg_plaza.webp" alt="">' +
@@ -166,6 +183,15 @@
       '</div>';
 
     refreshCreator("quiet");
+
+    if (document.getElementById("btnResume")) {
+      document.getElementById("btnResume").onclick = function () { DH.Game.resumeRun(); };
+      document.getElementById("btnDiscard").onclick = function () {
+        DH.Game.discardSavedRun();
+        var b = document.getElementById("ccResume");
+        if (b) b.remove();
+      };
+    }
 
     var card = ensureApp().querySelector(".cc-card");
     var change = function (fn, what) { fn(); DH.Game.saveChar(); refreshCreator(what); };
@@ -227,11 +253,17 @@
     var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
     var hs = "";
     for (var i = 0; i < g.maxHearts; i++) hs += i < g.hearts ? "❤️" : "🖤";
+    var tired = g.hearts <= 0 && g.phase !== "LOBBY";
     return '<div class="hud-strip">' +
-      '<span>' + jb.icon + ' ' + DH.esc(charDraft.name) + ' ' + hs + '</span>' +
+      '<span>' + jb.icon + ' ' + DH.esc(charDraft.name) + ' ' + hs + (tired ? ' <b class="hud-tired" title="หัวใจหมด: ดาเมจ ×0.5 จนกว่าจะฟื้น">😵 หมดแรง</b>' : '') + '</span>' +
       '<span id="sTimerTxt" style="color:var(--gold)">ด่าน ' + (g.stageIdx + 1) + '/' + DH.STAGES.length + '</span>' +
-      '<span style="color:var(--gold)">⚔️ ' + g.score + (g.streak >= 2 ? ' · 🔥' + g.streak : '') + '</span>' +
+      '<span style="color:var(--gold)">⚔️ ' + g.score + (g.streak >= 2 ? ' · 🔥' + g.streak : '') + muteButtonHtml() + '</span>' +
     '</div>';
+  }
+
+  function muteButtonHtml() {
+    var on = DH.SFX.isEnabled();
+    return '<button type="button" class="mute-btn" data-mute="1" aria-label="' + (on ? "ปิดเสียง" : "เปิดเสียง") + '" title="' + (on ? "ปิดเสียง" : "เปิดเสียง") + '">' + (on ? "🔊" : "🔇") + '</button>';
   }
 
   function monsterMiniHud(m) {
@@ -268,6 +300,50 @@
       txt = "🎯 " + (m.isBoss ? "เป้าโค่นมังกร: " : "") + "ขาดอีก " + m.hp + " ดาเมจ ใน " + left + " ข้อ (≈" + per + "/ข้อ · " + hint + ")";
     }
     return '<div class="target-line t-' + cls + '">' + txt + '</div>';
+  }
+
+  // Plain-text result a student can paste into LINE / Google Form for the teacher.
+  function resultText(g, charDraft) {
+    var jb = DH.JOBS[charDraft.job] || DH.JOBS.warrior;
+    var avgAcc = Math.round(100 * g.accSum / Math.max(1, g.qTotal));
+    var outcome = g.result === "win" ? "ปราบมังกรสำเร็จ 🐉✅" : (g.result === "lose" ? "แพ้มังกร (ดาเมจไม่พอ)" : "ยังไม่ถึงมังกร");
+    var mList = Object.keys(g.mistakes).map(function (c) { return [c, g.mistakes[c]]; })
+      .sort(function (a, b) { return b[1] - a[1]; }).slice(0, 3)
+      .map(function (p) { return "- " + ((DH.MISTAKE_META[p[0]] || {}).label || p[0]) + " ×" + p[1]; });
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return [
+      "Dragon Hero: ผลการเล่น FBD",
+      "ชื่อ: " + (charDraft.name || "-") + " (" + jb.name + ")",
+      "ผล: " + outcome,
+      "ดาเมจรวม: " + g.score + " · แม่นยำ " + avgAcc + "% · ทำ " + g.qTotal + " ข้อ",
+      "จุดที่พลาดบ่อย:",
+      mList.length ? mList.join("\n") : "- ไม่มี 🌟",
+      "เวลา: " + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
+    ].join("\n");
+  }
+
+  function copyText(t) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(t).catch(function () { return legacyCopy(t); });
+    }
+    return legacyCopy(t);
+  }
+
+  function legacyCopy(t) {
+    return new Promise(function (ok, fail) {
+      var ta = document.createElement("textarea");
+      ta.value = t;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var done = false;
+      try { done = document.execCommand("copy"); } catch (e) { done = false; }
+      ta.remove();
+      if (done) ok(); else fail();
+    });
   }
 
   // Feature 5: how the player's mistakes changed between the first and second half of the run.
@@ -379,10 +455,18 @@
       '</div>' +
       '<div class="rpg-card" style="text-align:center;margin-top:10px;border-color:var(--gold)">' +
         '<div>⛲ <b>' + DH.esc(charDraft.name) + ' (' + jb.name + ')</b> กำลังเดินรออยู่ตรงลานน้ำพุกลางเมือง!</div>' +
-        '<div style="display:flex;gap:8px;margin-top:10px">' +
-          '<button class="btn-sec" id="btnEditChar" style="flex:0 0 auto">✏️ แก้ไขตัวละคร</button>' +
-          '<button class="btn-pri" id="btnDepart" style="flex:1">⚔️ กดเริ่มออกเดินทาง!</button>' +
-        '</div>' +
+        (DH.Tutorial.isDone()
+          ? '<div style="display:flex;gap:8px;margin-top:10px">' +
+              '<button class="btn-sec" id="btnEditChar" style="flex:0 0 auto">✏️ แก้ไขตัวละคร</button>' +
+              '<button class="btn-pri" id="btnDepart" style="flex:1">⚔️ กดเริ่มออกเดินทาง!</button>' +
+            '</div>' +
+            '<button class="btn-link" id="btnTutorial">📘 ฝึกวิธีเล่นอีกครั้ง</button>'
+          : '<div class="tut-invite">ครั้งแรกใช่ไหม? ลองฝึกวาด FBD 2 ข้อก่อน ไม่จับเวลา ไม่เสียหัวใจ (ประมาณ 2 นาที)</div>' +
+            '<button class="btn-pri" id="btnTutorial" style="width:100%;margin-top:8px">📘 ฝึกก่อนออกเดินทาง</button>' +
+            '<div style="display:flex;gap:8px;margin-top:8px">' +
+              '<button class="btn-sec" id="btnEditChar" style="flex:0 0 auto">✏️ แก้ไขตัวละคร</button>' +
+              '<button class="btn-sec" id="btnDepart" style="flex:1">ข้ามไปลุยเลย ▶</button>' +
+            '</div>') +
       '</div>';
     } else if (g.phase === "INTRO") {
       body = '<div class="tbar"><i id="sTimerBar" style="width:0%"></i></div>' +
@@ -452,6 +536,8 @@
             '<b style="font-size:1.05rem">' + (r.timedOut ? "⏱ หมดเวลา · " : "") + resTitle + '</b>' +
             '<b style="font-size:1.15rem;color:' + (r.dmg >= 0 ? "var(--ok)" : "var(--bad)") + '">' + (r.dmg >= 0 ? "+" : "") + r.dmg + ' ดาเมจ</b>' +
           '</div>' +
+          (r.exhausted && r.dmg > 0 ? '<div class="tired-note">😵 หมดแรงอยู่ ดาเมจเหลือครึ่งเดียว · ใช้การ์ดฟื้นฟู 💚 หรือผ่านด่านนี้เพื่อฟื้นหัวใจ</div>' : '') +
+          (!r.exhausted && r.nowExhausted ? '<div class="tired-note">😵 หัวใจหมดแล้ว! ข้อต่อไปดาเมจจะเหลือครึ่งเดียวจนกว่าจะฟื้น</div>' : '') +
           (r.cardEarned ? '<div style="margin-top:6px;color:var(--gold)">🎁 Streak! ได้รับการ์ด ' + DH.CARDS[r.cardEarned].icon + ' ' + DH.CARDS[r.cardEarned].name + '</div>' : '') +
           '<div id="soloRevBoard" style="margin-top:10px"></div>' +
           '<ul class="fb-list">' + r.rows.map(function (row) {
@@ -493,6 +579,7 @@
         '<div class="mon-hud"><div class="mon-title">' + DH.esc(m2.name) + '</div><div class="hp-track"><div class="hp-fill" style="width:' + (100 * m2.hp / m2.maxHp) + '%"></div></div><div class="hp-text">HP ' + m2.hp + ' / ' + m2.maxHp + '</div>' + targetLine(g) + '</div>' +
         (hitMon ? '<div class="boss-impact-zone"><div class="big-dmg-pop">-' + r2.dmg + '</div></div>' : '') +
         impact +
+        (r2.phaseUp ? '<div class="phase-up-flash"></div><div class="phase-up-banner">🔥 มังกรโกรธจัด! <b>เข้าสู่เฟส ' + r2.phaseUp + '</b><span>' + (r2.phaseUp === 3 ? 'เกล็ดลุกเป็นไฟ ใกล้ล้มแล้ว สู้ต่อ!' : 'มังกรเริ่มเคลื่อนไหวเร็วขึ้น!') + '</span></div>' : '') +
         '<div class="actors-row">' +
           (hitMon && atkStyle === "ranged" ? '<span class="proj proj-' + DH.esc(charDraft.job) + '"></span>' : '') +
           dragonBreathFx +
@@ -560,6 +647,15 @@
               '<b>' + st.ok + '/' + st.total + ' (' + Math.round(100 * st.ok / st.total) + '%)</b></div>';
           }).join("") +
           progressHtml(g) +
+          '<div class="send-teacher">' +
+            '<div class="send-title">📨 ส่งผลให้ครู</div>' +
+            '<pre class="send-preview" id="resultText">' + DH.esc(resultText(g, charDraft)) + '</pre>' +
+            '<div style="display:flex;gap:8px">' +
+              '<button type="button" class="btn-pri" id="btnCopyResult" style="flex:1">📋 คัดลอกผล</button>' +
+              (navigator.share ? '<button type="button" class="btn-sec" id="btnShareResult" style="flex:1">📤 แชร์ (LINE ฯลฯ)</button>' : '') +
+            '</div>' +
+            '<div class="send-msg" id="copyMsg" aria-live="polite"></div>' +
+          '</div>' +
           '<div style="display:flex;gap:8px;margin-top:14px">' +
             '<button type="button" class="btn-sec" id="btnRetryBoss" style="flex:1">🐉 ท้ามังกรอีกครั้ง</button>' +
             '<button type="button" class="btn-pri" id="btnRestart" style="flex:1">🔄 เล่นใหม่ตั้งแต่ต้น</button>' +
@@ -612,6 +708,7 @@
     if (g.phase === "LOBBY") {
       document.getElementById("btnEditChar").onclick = DH.Game.resetToCreate;
       document.getElementById("btnDepart").onclick = function () { DH.Game.newRun(0); };
+      document.getElementById("btnTutorial").onclick = function () { DH.Tutorial.open(); };
     } else if (g.phase === "INTRO" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.enterEncounter;
     else if (g.phase === "ENCOUNTER" && (el = document.getElementById("btnNext"))) el.onclick = DH.Game.startQuestion;
     else if (g.phase === "QUESTION") {
@@ -648,6 +745,18 @@
     else if (g.phase === "SUMMARY") {
       document.getElementById("btnRetryBoss").onclick = function () { DH.Game.newRun(DH.STAGES.length - 1); };
       document.getElementById("btnRestart").onclick = DH.Game.resetToCreate;
+      var txt = resultText(g, DH.Game.getChar());
+      var msg = document.getElementById("copyMsg");
+      document.getElementById("btnCopyResult").onclick = function () {
+        copyText(txt).then(function () {
+          msg.textContent = "✓ คัดลอกแล้ว นำไปวางในแชตหรือฟอร์มที่ครูกำหนดได้เลย";
+        }, function () {
+          msg.textContent = "คัดลอกอัตโนมัติไม่ได้ กดค้างที่ข้อความด้านบนเพื่อคัดลอกเอง";
+        });
+      };
+      if ((el = document.getElementById("btnShareResult"))) {
+        el.onclick = function () { navigator.share({ title: "ผล Dragon Hero", text: txt }).catch(function () {}); };
+      }
     }
     updateTimer();
   }

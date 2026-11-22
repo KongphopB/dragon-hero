@@ -17,13 +17,14 @@ dragon hero/
 │  ├─ theme.css            # Colors, buttons, cards, FBD board
 │  ├─ creator.css          # Character creator: live preview stage, hair/hat pickers, job cards
 │  ├─ animation-rig.css    # Character idle/attack/hurt, monster rigs, impact effects
+│  ├─ systems.css          # Mute, exhausted state, boss phase-up, resume banner, send-to-teacher, tutorial
 │  └─ scenes.css           # Stage, layered pixel avatar, monster sprite, animations
 ├─ js/
 │  ├─ data/                # Static game data (no logic, no DOM)
 │  │  ├─ characters.js     # FORCES, JOBS, CARDS, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, HATS
 │  │  ├─ mistakes.js       # MISTAKE_META, TOPIC_LABELS
 │  │  ├─ stages.js         # STAGES (5 stages -> Slime, Goblin, Fenrir, Orc, Dragon Boss)
-│  │  ├─ monster-rigs.js   # Which rectangle of each monster sprite moves (wings, tail, blade...) and its pivot
+│  │  ├─ monster-rigs.js   # Per monster: body/part sprites (assets/monsters/parts), pivots, attack frame sequence
 │  │  └─ questions.js      # QUESTIONS stock (Types A, B, C, D cos/sin)
 │  ├─ core/                # Pure game logic (no DOM rendering)
 │  │  ├─ grading.js        # gradeAnswer(q, place) -> acc, outcome, codes, rows
@@ -32,7 +33,8 @@ dragon hero/
 │  ├─ ui/                  # DOM & SVG rendering only
 │  │  ├─ avatar.js         # Composes layered 48x48 PNG character parts (Option C)
 │  │  ├─ fbd-board.js      # Drag-and-drop FBD & cos/sin vector board
-│  │  └─ screens.js        # Renders each game phase screen
+│  │  ├─ screens.js        # Renders each game phase screen
+│  │  └─ tutorial.js       # First-time guided practice (2 boards + cards/hearts explainer)
 │  ├─ sfx.js               # 8-bit Web Audio synthesizer
 │  └─ main.js              # Bootstraps Game + UI
 ├─ assets/
@@ -52,5 +54,7 @@ dragon hero/
 6. **Backgrounds & monster sprites are WebP** (`assets/bg/*.webp`, `assets/monsters/*.webp`, quality 95) to keep the page light on phones. Convert new art to WebP before adding it; character parts stay 48×48 PNG.
 7. **Hosting:** the single-player game is a static site published with GitHub Pages from `main` (repo root). Every push to `main` updates the live link, so keep `main` playable.
 8. **Cache-busting:** every `css/` and `js/` link in `index.html` ends in `?v=N`. Bump `N` whenever you push a change, otherwise phones that already opened the GitHub Pages link may mix old and new files.
-9. **Monster animation rigs:** each monster sprite is drawn several times, each copy clipped to one region (`js/data/monster-rigs.js`). If a monster's art changes, re-check the clip rectangles against a 10% grid overlay of the new sprite. Idle motion per monster lives in `css/animation-rig.css` (`.rig-<id>`).
+9. **Monster animation rigs:** each monster is a body sprite plus separate part sprites (`assets/monsters/parts/`) and an optional attack frame sequence (`atkSeq`), all listed in `js/data/monster-rigs.js`. Idle motion lives in `css/animation-rig.css` (`.rig-<id>`). `preview.html` is a debug lab for checking them. `js/main.js` preloads every file listed in the rigs, so new parts/frames only need adding to the rig list.
 10. **Character blink:** `assets/characters/parts/body/blink_<skin>.png` are eyelid overlays generated from the skin sprites (eyes at x 19–20 & 26–27, y 16–21). Regenerate them if the face changes.
+11. **Saved runs:** an in-progress solo run is saved to `localStorage` (`dh_solo_run`) on every screen change and about once a second while a timer runs, and offered back on the start screen for 3 days. Keep any new fields on the game state `g` JSON-serialisable.
+12. **Hearts:** wrong answers (<50%) cost a heart; at 0 hearts the hero is exhausted and deals ×0.5 damage (`EXHAUSTED_MULT` in `js/core/game.js`) until healed or the next stage.
