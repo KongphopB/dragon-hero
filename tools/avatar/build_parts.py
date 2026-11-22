@@ -33,6 +33,7 @@ KEYS = {
     "hair": [(1, 255, 0), (2, 254, 0), (3, 253, 0)],
     "main": [(0, 1, 255), (0, 2, 254), (0, 3, 253)],
     "trim": [(255, 255, 1), (254, 254, 2), (253, 253, 3)],
+    "eye":  [(1, 1, 254), (1, 2, 253), (1, 3, 252)],
 }
 OUTLINE = (20, 16, 32)
 
@@ -45,6 +46,8 @@ CHARS = {
     "1": KEYS["trim"][0] + (255,), "2": KEYS["trim"][1] + (255,), "3": KEYS["trim"][2] + (255,),
     "w": (245, 248, 255, 255),  # white / eye shine
     "e": (24, 24, 42, 255),     # eye dark
+    "i": KEYS["eye"][1] + (255,),  # eye iris (recolourable)
+    "I": KEYS["eye"][2] + (255,),  # eye iris upper shade (recolourable)
     "p": (255, 150, 160, 255),  # pink (blush, inner ear)
     "P": (226, 96, 120, 255),   # deep pink (tongue, flower)
     "r": (200, 40, 50, 255),    # mouth red
@@ -72,7 +75,7 @@ CHARS = {
 }
 
 
-def blank(w=48, h=48):
+def blank(w=64, h=64):
     return Image.new("RGBA", (w, h), (0, 0, 0, 0))
 
 
@@ -130,18 +133,18 @@ def build_body():
     return {"body": body, "body_back": back}
 
 
-# =========================================================== FACES
+# =========================================================== FACES (True 2x Stardew Valley Eye Style!)
 EYES = {
-    # each: (open rows at y16, closed rows at y16), drawn per eye at x18 (left) / x25 (right) as 4-wide cells
-    "normal": (["....", ".we.", ".ee.", ".ee.", ".ee."], ["....", "....", "....", ".ee.", "...."]),
-    "big":    (["wwe.", "wwe.", "wee.", "eee.", ".ee."], ["....", "....", "....", "eee.", "...."]),
-    "sharp":  (["ee..", ".ee.", ".we.", ".ee.", "...."], ["ee..", ".e..", "....", ".ee.", "...."]),
-    "happy":  (["....", ".ee.", "e..e", "e..e", "...."], ["....", "....", "....", "eeee", "...."]),
-    "sleepy": (["....", "....", "eeee", ".ee.", "...."], ["....", "....", "....", "eeee", "...."]),
-    "angry":  (["e...", ".e..", ".we.", ".ee.", ".ee."], ["e...", ".e..", "....", ".ee.", "...."]),
+    # Exact 2x Stardew geometry: dark upper lid + 2px outer white sclera + 2px inner vertical iris (4px center bridge!)
+    "normal": (["eeee", "wwIi", "wwii", "wwIi", "...."], ["....", "....", "....", "eeee", "...."]),
+    "big":    ([".eee", "wwIi", "wwii", "wwie", ".wii"], ["....", "....", "....", "eeee", "...."]),
+    "sharp":  (["ee..", ".eee", "wwIi", "wwii", "...."], ["ee..", "....", "....", "eeee", "...."]),
+    "happy":  (["....", ".ee.", "e..e", "....", "...."], ["....", "....", "....", "eeee", "...."]),
+    "sleepy": (["....", "eeee", "wwIi", "wwii", "...."], ["....", "....", "....", "eeee", "...."]),
+    "angry":  (["e...", "eeee", "wwIi", "wwii", "...."], ["e...", "....", "....", "eeee", "...."]),
 }
 MOUTHS = {
-    "smile": ["....", "Z..Z", ".ZZ."],
+    "smile": ["....", "....", ".ZZ."],
     "grin":  [".ee.", "eeee", ".rr."],
     "cat":   ["....", "Z.Z.", ".Z.Z"],
     "flat":  ["....", "....", "ZZZZ"],
@@ -155,25 +158,24 @@ def build_faces():
         for tag, rows in (("", opened), ("_blink", closed)):
             im = blank()
             left = rows
-            right = [r[::-1] for r in rows]  # mirrored so brows/angles face inward
-            draw(im, 18, 16, left)
-            draw(im, 26, 16, right)
+            right = [r[::-1] for r in rows]
+            draw(im, 26, 16, left)
+            draw(im, 34, 16, right)
             if tag == "_blink":
-                # cover the open eye with skin so the closed line reads on top of the open layer
                 cover = blank()
                 for y in range(16, 21):
-                    for x in list(range(18, 22)) + list(range(26, 30)):
+                    for x in list(range(26, 30)) + list(range(34, 38)):
                         cover.putpixel((x, y), CHARS["s"])
                 cover.alpha_composite(im)
                 im = cover
             out["eyes_" + name + tag] = im
     for name, rows in MOUTHS.items():
         im = blank()
-        draw(im, 22, 20, rows)
+        draw(im, 30, 21, rows)
         out["mouth_" + name] = im
     blush = blank()
-    draw(blush, 17, 21, ["pp"])
-    draw(blush, 29, 21, ["pp"])
+    draw(blush, 24, 20, ["pp"])
+    draw(blush, 38, 20, ["pp"])
     out["blush"] = blush
     return out
 
@@ -690,26 +692,25 @@ def build_race():
 def build_accessories():
     out = {}
     g = blank()
-    draw(g, 17, 16, [
+    draw(g, 25, 16, [
         "ooooo..ooooo",
         "ocwwo..ocwwo",
         "o...oooo...o",
         "o...o..o...o",
         "ooooo..ooooo",
     ])
-    # clear the lens interior so eyes show through (keep shine)
     px = g.load()
-    for (x, y) in [(18, 18), (19, 18), (20, 18), (18, 19), (19, 19), (20, 19), (25, 18), (26, 18), (27, 18), (25, 19), (26, 19), (27, 19)]:
+    for (x, y) in [(26, 18), (27, 18), (28, 18), (26, 19), (27, 19), (28, 19), (33, 18), (34, 18), (35, 18), (33, 19), (34, 19), (35, 19)]:
         px[x, y] = (0, 0, 0, 0)
     out["acc_glasses"] = g
 
     patch = blank()
-    draw(patch, 15, 15, [
-        "o...........oo..",
-        ".o.........onno.",
-        "..oooooooooonnno",
-        "...........onnno",
-        "............oo..",
+    draw(patch, 23, 15, [
+        "o...........oo.",
+        ".o.........onno",
+        "..oooooooooonno",
+        "...........onno",
+        "............oo.",
     ])
     out["acc_eyepatch"] = patch
 
@@ -765,7 +766,7 @@ def build_accessories():
     out["acc_cape_front"] = clasp
 
     flower = blank()
-    draw(flower, 30, 10, [
+    draw(flower, 38, 9, [
         ".pp.",
         "pPPp",
         "pPgp",
@@ -942,9 +943,21 @@ def build_palettes():
     skin = [t[1] for t in v1_skin_tones()] + [[236, 214, 204], [212, 88, 88], [150, 112, 212], [94, 140, 212]]
     hair = [[44, 52, 74], [128, 74, 36], [226, 178, 40], [200, 48, 44], [86, 80, 210], [222, 226, 236],
             [236, 112, 168], [64, 168, 98], [168, 176, 194], [60, 184, 216]]
+    eye = [
+        [56, 86, 152],   # Stardew slate blue
+        [96, 56, 36],    # warm brown
+        [186, 118, 34],  # honey amber
+        [44, 152, 86],   # emerald green
+        [44, 172, 218],  # sky blue
+        [134, 72, 206],  # violet
+        [204, 48, 62],   # ruby red
+        [228, 178, 36],  # gold
+        [230, 102, 160], # rose pink
+        [48, 52, 68],    # obsidian dark slate
+    ]
     cloth = [(214, 44, 44), (232, 96, 24), (222, 168, 20), (106, 166, 28), (32, 160, 84), (20, 148, 136),
              (20, 142, 186), (44, 104, 226), (88, 78, 222), (146, 60, 220), (214, 52, 128), (84, 96, 120)]
-    return {"skin": skin, "hair": hair, "cloth": [list(c) for c in cloth]}
+    return {"skin": skin, "hair": hair, "eye": eye, "cloth": [list(c) for c in cloth]}
 
 
 # =========================================================== recolour + preview
@@ -1001,33 +1014,36 @@ def compose(parts, spec, pal):
     job = spec.get("job", "warrior")
     w_back = parts["weapon_" + job + "_back"]
     w_front = parts["weapon_" + job]
+    behind_name = "hair_" + spec.get("hair", "short") + "_behind"
     first_front = len(back)
     for i, name in enumerate(layers):
         if i == first_front:
             im.alpha_composite(w_back)
+            if behind_name in parts:
+                im.alpha_composite(apply(parts[behind_name], pal))
         im.alpha_composite(apply(parts[name], pal))
     im.alpha_composite(w_front)
     return im
 
 
 def preview(parts, pals):
-    S, C, H = pals["skin"], pals["cloth"], pals["hair"]
-    def P(skin=1, hair=0, main=0, trim=2):
-        return {"skin": S[skin], "hair": H[hair], "main": C[main], "trim": C[trim]}
+    S, C, H, E = pals["skin"], pals["cloth"], pals["hair"], pals["eye"]
+    def P(skin=1, hair=0, main=0, trim=2, eye=0):
+        return {"skin": S[skin], "hair": H[hair], "eye": E[eye], "main": C[main], "trim": C[trim]}
 
     showcase = [
-        ({"race": "human", "outfit": "tunic", "hair": "messy", "eyes": "normal", "mouth": "smile", "job": "warrior", "blush": True}, P(1, 1, 0, 2)),
-        ({"race": "elf", "outfit": "archer", "hair": "long", "eyes": "big", "mouth": "smile", "job": "archer"}, P(4, 2, 4, 1)),
-        ({"race": "dwarf", "outfit": "knight", "hair": "shaggy", "eyes": "sharp", "mouth": "flat", "job": "knight", "hat": 5}, P(2, 3, 7, 2)),
-        ({"race": "beast", "beast": "cat", "outfit": "ninja", "hair": "spiky", "eyes": "happy", "mouth": "cat", "job": "archer", "acc": "scarf"}, P(0, 8, 11, 0)),
-        ({"race": "demon", "horns": "small", "outfit": "mage", "hair": "twintails", "eyes": "angry", "mouth": "grin", "job": "mage", "acc": "cape"}, P(6, 9, 9, 10)),
-        ({"race": "beast", "beast": "fox", "outfit": "priest", "hair": "bun", "eyes": "sleepy", "mouth": "o", "job": "priest", "acc": "flower", "blush": True}, P(1, 1, 3, 2)),
-        ({"race": "demon", "horns": "ram", "outfit": "knight", "hair": "sweep", "eyes": "sharp", "mouth": "smile", "job": "warrior", "acc": "wings"}, P(7, 7, 10, 2)),
-        ({"race": "human", "outfit": "archer", "hair": "ponytail", "eyes": "big", "mouth": "grin", "job": "archer", "acc": "glasses", "blush": True}, P(3, 2, 5, 6)),
-        ({"race": "beast", "beast": "wolf", "outfit": "tunic", "hair": "band", "eyes": "angry", "mouth": "flat", "job": "warrior", "acc": "eyepatch"}, P(2, 0, 1, 11)),
-        ({"race": "elf", "outfit": "mage", "hair": "bob", "eyes": "normal", "mouth": "o", "job": "mage", "hat": "dragon"}, P(5, 9, 8, 2)),
+        ({"race": "human", "outfit": "tunic", "hair": "messy", "eyes": "normal", "mouth": "smile", "job": "warrior", "blush": True}, P(1, 1, 0, 2, 0)),
+        ({"race": "elf", "outfit": "archer", "hair": "long", "eyes": "big", "mouth": "smile", "job": "archer"}, P(4, 2, 4, 1, 3)),
+        ({"race": "dwarf", "outfit": "knight", "hair": "shaggy", "eyes": "sharp", "mouth": "flat", "job": "knight", "hat": 5}, P(2, 3, 7, 2, 1)),
+        ({"race": "beast", "beast": "cat", "outfit": "ninja", "hair": "spiky", "eyes": "happy", "mouth": "cat", "job": "archer", "acc": "scarf"}, P(0, 8, 11, 0, 7)),
+        ({"race": "demon", "horns": "small", "outfit": "mage", "hair": "twintails", "eyes": "angry", "mouth": "grin", "job": "mage", "acc": "cape"}, P(6, 9, 9, 10, 6)),
+        ({"race": "beast", "beast": "fox", "outfit": "priest", "hair": "bun", "eyes": "sleepy", "mouth": "o", "job": "priest", "acc": "flower", "blush": True}, P(1, 1, 3, 2, 2)),
+        ({"race": "demon", "horns": "ram", "outfit": "knight", "hair": "sweep", "eyes": "sharp", "mouth": "smile", "job": "warrior", "acc": "wings"}, P(7, 7, 10, 2, 5)),
+        ({"race": "human", "outfit": "archer", "hair": "ponytail", "eyes": "big", "mouth": "grin", "job": "archer", "acc": "glasses", "blush": True}, P(3, 2, 5, 6, 4)),
+        ({"race": "beast", "beast": "wolf", "outfit": "tunic", "hair": "band", "eyes": "angry", "mouth": "flat", "job": "warrior", "acc": "eyepatch"}, P(2, 0, 1, 11, 6)),
+        ({"race": "elf", "outfit": "mage", "hair": "bob", "eyes": "normal", "mouth": "o", "job": "mage", "hat": "dragon"}, P(5, 9, 8, 2, 8)),
     ]
-    scale, cell = 4, 52
+    scale, cell = 3, 68
     sheet_rows = []
 
     def row(images, label_h=0):
@@ -1058,7 +1074,7 @@ def preview(parts, pals):
     sheet = Image.new("RGBA", (cols * cell * scale, (len(sheet_rows) + 1) * cell * scale), (52, 63, 86, 255))
     for ry, imgs in enumerate(sheet_rows):
         for cx, im in enumerate(imgs):
-            sheet.alpha_composite(im.resize((48 * scale, 48 * scale), Image.NEAREST), (cx * cell * scale + 2 * scale, ry * cell * scale + 2 * scale))
+            sheet.alpha_composite(im.resize((64 * scale, 64 * scale), Image.NEAREST), (cx * cell * scale + 2 * scale, ry * cell * scale + 2 * scale))
     for cx, im in enumerate(pets):
         pal = {}
         sheet.alpha_composite(apply(im, pal).resize((16 * scale * 2, 16 * scale * 2), Image.NEAREST),
@@ -1135,19 +1151,22 @@ def generic_classifier(im, tag):
     return classify
 
 
-FACE_REGION = {(x, y) for y in range(11, 27) for x in range(16, 32)}
+FACE_REGION = {(x, y) for y in range(8, 28) for x in range(22, 42)}
 
 
 def shade_all(parts):
     out = {}
     for name, im in parts.items():
         if name.startswith(("eyes_", "mouth_", "blush")):
-            # tiny face marks stay crisp: just move their skin keys onto the 6-step ramp
+            # tiny face marks stay crisp: just move skin & eye keys onto their 6-step ramps
             face = im.copy()
             fpx = face.load()
-            to6 = {KEYS["skin"][0]: SH.KEYS6["skin"][1], KEYS["skin"][1]: SH.KEYS6["skin"][2], KEYS["skin"][2]: SH.KEYS6["skin"][4]}
-            for yy in range(48):
-                for xx in range(48):
+            to6 = {
+                KEYS["skin"][0]: SH.KEYS6["skin"][1], KEYS["skin"][1]: SH.KEYS6["skin"][2], KEYS["skin"][2]: SH.KEYS6["skin"][4],
+                KEYS["eye"][0]: SH.KEYS6["eye"][1],   KEYS["eye"][1]: SH.KEYS6["eye"][2],   KEYS["eye"][2]: SH.KEYS6["eye"][3],
+            }
+            for yy in range(face.height):
+                for xx in range(face.width):
                     q = fpx[xx, yy]
                     if q[3] == 255 and q[:3] in to6:
                         fpx[xx, yy] = to6[q[:3]] + (255,)
@@ -1159,16 +1178,33 @@ def shade_all(parts):
             cls = classify_known
         sh = SH.shade(im, cls, OUTLINE)
         if (name.startswith("hair_") and not name.endswith("_back")) or name.startswith("hat_"):
-            SH.cast_shadow(sh, FACE_REGION)
+            SH.cast_shadow(sh, FACE_REGION, alpha=45)
         out[name] = sh
     return out
+
+
+def shift_im(im, dx, dy):
+    res = blank()
+    res.alpha_composite(im, (dx, dy))
+    return res
 
 
 def build_weapons():
     out = {}
     for job in ("warrior", "archer", "mage", "knight", "priest"):
-        out["weapon_" + job] = Image.open(V1 / "weapons" / (job + ".png")).convert("RGBA")
-        out["weapon_" + job + "_back"] = Image.open(V1 / "weapons" / (job + "_back.png")).convert("RGBA")
+        fw = Image.open(V1 / "weapons" / (job + ".png")).convert("RGBA")
+        bw = Image.open(V1 / "weapons" / (job + "_back.png")).convert("RGBA")
+        # 64x64 hands sit at left (22.4, 39.6) and right (40.4, 39.6) vs old 48x48 (15, 33) and (32, 33)
+        if job == "knight":
+            sh = blank()
+            sh.alpha_composite(fw.crop((0, 0, 24, 48)), (7, 7))
+            sh.alpha_composite(fw.crop((24, 0, 48, 48)), (32, 7))
+            out["weapon_" + job] = sh
+        elif job in ("mage", "priest"):
+            out["weapon_" + job] = shift_im(fw, 7, 7)
+        else:
+            out["weapon_" + job] = shift_im(fw, 8, 7)
+        out["weapon_" + job + "_back"] = shift_im(bw, 7, 7)
     return out
 
 

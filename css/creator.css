@@ -129,11 +129,11 @@ button.swatch { padding: 0; }
 .crop-head .pick-art { height: 48px; }
 .crop-head .pick-art .avatar-stack { width: 84px; height: 84px; top: -6px; }
 .crop-hair .pick-art { height: 64px; }
-.crop-hair .pick-art .avatar-stack { width: 84px; height: 84px; top: -3px; }
+.crop-hair .pick-art .avatar-stack { width: 84px; height: 84px; top: 0; }
 .crop-hat .pick-art { height: 50px; }
 .crop-hat .pick-art .avatar-stack { width: 84px; height: 84px; top: 0; }
 .crop-face .pick-art { height: 40px; }
-.crop-face .pick-art .avatar-stack { width: 130px; height: 130px; top: -40px; }
+.crop-face .pick-art .avatar-stack { width: 130px; height: 130px; top: -24px; }
 .crop-body .pick-art { height: 70px; }
 .crop-body .pick-art .avatar-stack { width: 70px; height: 70px; top: 0; }
 .pick-thumb.locked { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.7); }

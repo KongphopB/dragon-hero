@@ -72,7 +72,10 @@ window.DH.AVATAR = {
 window.DH.AVATAR.normalize = function (look, job) {
   var A = window.DH.AVATAR;
   look = look || {};
-  if (look.v === 2) return look;
+  if (look.v === 2) {
+    if (look.eyeColor == null) look.eyeColor = 0;
+    return look;
+  }
   var oldHair = ["short", "messy", "bob", "band", "side", "shaggy"];
   var oldOutfitToCloth = [0, 7, 4, 9, 2, 6, 10, 11];
   var preset = A.jobPreset[job] || A.jobPreset.warrior;
@@ -82,6 +85,7 @@ window.DH.AVATAR.normalize = function (look, job) {
     raceVar: "",
     skin: (look.skin || 0) % 8,
     eyes: "normal",
+    eyeColor: 0,
     mouth: "smile",
     blush: true,
     hair: typeof look.hair === "string" ? look.hair : oldHair[(look.hair || 0) % 6],
@@ -108,6 +112,7 @@ window.DH.AVATAR.random = function (job, isUnlocked) {
     raceVar: race.variants ? pick(race.variants).id : "",
     skin: skin,
     eyes: pick(A.eyes).id,
+    eyeColor: P.eye ? Math.floor(Math.random() * P.eye.length) : 0,
     mouth: pick(A.mouths).id,
     blush: Math.random() < 0.6,
     hair: pick(A.hair).id,

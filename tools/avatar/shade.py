@@ -52,12 +52,13 @@ def ramp(rgb, kind=None):
 
 
 # ------------------------------------------------------------------ keys
-KEY_MATS = ("skin", "hair", "main", "trim")
+KEY_MATS = ("skin", "hair", "main", "trim", "eye")
 KEYS6 = {
     "skin": [(255, 0, 16 + i) for i in range(6)],
     "hair": [(0, 255, 16 + i) for i in range(6)],
     "main": [(16 + i, 0, 255) for i in range(6)],
     "trim": [(255, 255, 16 + i) for i in range(6)],
+    "eye":  [(0, 16 + i, 255) for i in range(6)],
 }
 
 # fixed materials: base colour of each
@@ -187,13 +188,13 @@ def shade(im, classify, outline_rgb, shadow_alpha_rgba=None):
             v = lv[p] + labels[p][1]
             x, y = p
             if mat == "hair":
-                # strands: diagonal streaks one step darker, and a lit "ring" near the top
-                if d[p] >= 2 and (x + (y // 2)) % 3 == 0 and v in (1, 2):
+                # subtle curved sheen near crown + clean strand shading
+                if d[p] >= 2 and (x + (y // 3)) % 4 == 0 and v == 2:
                     v += 1
-                if top + 2 <= y <= top + 3 and d[p] >= 2 and x % 2 == 0 and v <= 2:
+                if top + 2 <= y <= top + 3 and d[p] >= 2 and v <= 2:
                     v = 0
-            if mat in CLOTH and v == 3 and d[p] >= 2 and (x + y) % 2 == 0:
-                v = 2  # light dither on cloth shadows
+            if mat in CLOTH and v == 3 and d[p] >= 3 and (x + y) % 3 == 0:
+                v = 2  # soft clean cloth shading without heavy noise
             if mat == "skin":
                 v = max(1, min(3, v - 1))  # skin stays soft and mostly lit
             level[p] = max(0, min(4, v))

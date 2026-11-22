@@ -223,8 +223,8 @@
   animation: craneHeroWalk 7.0s linear forwards;
 }
 @keyframes walkBob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -2.5px, 0); }
 }
 @keyframes patrolMove {
   0%, 4%    { transform: translateX(-56px); }
@@ -264,7 +264,7 @@
 .anim-walk .avatar-stack { animation: walkBob 0.36s ease-in-out infinite; }
 .anim-patrol { animation: patrolMove 6.4s linear infinite; }
 .anim-patrol .walk-flip { animation: patrolFace 6.4s steps(1, end) infinite; }
-.is-walking .px-bob { animation: walkBob 0.34s steps(2, end) infinite; }
+.is-walking .px-bob { animation: walkBob 0.34s ease-in-out infinite; }
 .is-walking .step-idle { animation: stepIdle 0.68s steps(1, end) infinite; }
 .is-walking .step-s1   { animation: stepS1   0.68s steps(1, end) infinite; }
 .is-walking .step-s2   { animation: stepS2   0.68s steps(1, end) infinite; }

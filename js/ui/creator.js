@@ -8,7 +8,7 @@
     ["race", "🧬 เผ่า"], ["face", "🙂 หน้า"], ["hair", "💇 ผม"],
     ["outfit", "👕 ชุด"], ["extra", "🎩 ของแต่ง"], ["pet", "🐾 สัตว์เลี้ยง"]
   ];
-  var NUMERIC = { skin: 1, hairColor: 1, main: 1, trim: 1 };
+  var NUMERIC = { skin: 1, hairColor: 1, eyeColor: 1, main: 1, trim: 1 };
 
   function charDraft() { return DH.Game.getChar(); }
 
@@ -75,6 +75,7 @@
     return row("ดวงตา", grid(A.eyes.map(function (e) {
       return thumb("eyes", e.id, lookWith({ eyes: e.id, hat: "", acc: "" }), "crop-face", e.name);
     }), "cols-6")) +
+      row("สีตา", swatches("eyeColor", DH.AVATAR_PALETTES.eye || [])) +
       row("ปาก", grid(A.mouths.map(function (m) {
         return thumb("mouth", m.id, lookWith({ mouth: m.id, hat: "", acc: "" }), "crop-face", m.name);
       }), "cols-5")) +

@@ -12,8 +12,8 @@ from scipy import ndimage
 
 import shade as SH
 
-K = 8                       # supersampling factor
-N = 48
+K = 6                       # supersampling factor (6x on 64x64 = 384x384)
+N = 64
 G = N * K
 _ys, _xs = np.mgrid[0:G, 0:G]
 X = (_xs + 0.5) / K         # sub-pixel centres in 48-px units
@@ -155,9 +155,9 @@ class Part:
                 v = float(self.val[y * K:(y + 1) * K, x * K:(x + 1) * K][sel].mean())
                 b = int(np.round(self.bias[y * K:(y + 1) * K, x * K:(x + 1) * K][sel].mean()))
                 name = self.mats[mi]
-                v += BAYER[y % 4, x % 4] * 0.05
+                v += BAYER[y % 4, x % 4] * 0.015
                 if name in glossy:
-                    v = (v - 0.5) * 1.35 + 0.52
+                    v = (v - 0.5) * 1.28 + 0.52
                 if v > 0.93:
                     lv = 0
                 elif v > 0.77:

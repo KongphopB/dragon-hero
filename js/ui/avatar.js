@@ -1,13 +1,13 @@
 (function (global) {
   var DH = global.DH = global.DH || {};
 
-  // Where each job's hand grips its weapon on the 48x48 grid (used as the swing pivot).
+  // Where each job's hand grips its weapon on the 64x64 grid (used as the swing pivot).
   var GRIP = {
-    warrior: "66% 74%",
-    archer:  "68% 62%",
-    mage:    "75% 66%",
-    priest:  "75% 66%",
-    knight:  "50% 60%"
+    warrior: "64% 63%",
+    archer:  "64% 58%",
+    mage:    "64% 62%",
+    priest:  "64% 62%",
+    knight:  "50% 58%"
   };
 
   // Melee jobs dash in; ranged jobs fire a projectile from where they stand.
@@ -15,9 +15,11 @@
 
   function palette(look) {
     var P = DH.AVATAR_PALETTES;
+    var eyeP = P.eye || [[56, 86, 152]];
     return {
       skin: P.skin[look.skin % P.skin.length],
       hair: P.hair[look.hairColor % P.hair.length],
+      eye:  eyeP[(look.eyeColor || 0) % eyeP.length],
       main: P.cloth[look.main % P.cloth.length],
       trim: P.cloth[look.trim % P.cloth.length]
     };
@@ -74,25 +76,26 @@
       html += outfit();
       html += tail() + cape();
       html += img("hair_" + look.hair + "_back", pal, "px-bob lyr-head");
-      if (race === "elf") html += img("race_elf_ears", pal, "px-bob lyr-torso");
+      if (race === "elf") html += img("race_elf_ears", pal, "px-bob lyr-head");
       html += headTop();
       html += img("weapon_" + job + "_back", pal, "px-bob lyr-torso");
     } else {
       html += cape() + tail();
       html += img("weapon_" + job + "_back", pal, "px-bob lyr-torso");
-      html += img("body", pal, "px-bob lyr-torso");
-      html += img("eyes_" + look.eyes, pal, "lyr-torso");
+      html += img("hair_" + look.hair + "_behind", pal, "px-bob lyr-head");
+      html += img("body", pal, "px-bob lyr-head");
+      html += img("eyes_" + look.eyes, pal, "px-bob lyr-head");
       if (!opts.walking && !opts.still) html += img("eyes_" + look.eyes + "_blink", pal, "lyr-blink");
-      html += img("mouth_" + look.mouth, pal, "lyr-torso");
-      if (look.blush) html += img("blush", pal, "lyr-torso");
+      html += img("mouth_" + look.mouth, pal, "px-bob lyr-head");
+      if (look.blush) html += img("blush", pal, "px-bob lyr-head");
       html += outfit();
-      if (race === "dwarf") html += img("race_dwarf_beard", pal, "lyr-torso");
+      if (race === "dwarf") html += img("race_dwarf_beard", pal, "px-bob lyr-head");
       if (look.acc === "scarf") html += img("acc_scarf", pal, "lyr-torso");
       if (look.acc === "cape") html += img("acc_cape_front", pal, "lyr-torso");
       html += img("hair_" + look.hair, pal, "px-bob lyr-head");
-      if (race === "elf") html += img("race_elf_ears", pal, "lyr-torso");
-      if (look.acc === "glasses" || look.acc === "eyepatch") html += img("acc_" + look.acc, pal, "lyr-torso");
-      if (look.acc === "flower") html += img("acc_flower", pal, "lyr-head");
+      if (race === "elf") html += img("race_elf_ears", pal, "px-bob lyr-head");
+      if (look.acc === "glasses" || look.acc === "eyepatch") html += img("acc_" + look.acc, pal, "px-bob lyr-head");
+      if (look.acc === "flower") html += img("acc_flower", pal, "px-bob lyr-head");
       html += headTop();
       html += img("weapon_" + job, pal, "px-bob lyr-weapon", grip);
     }
