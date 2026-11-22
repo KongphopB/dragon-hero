@@ -99,17 +99,6 @@
 
   function countText() { return count > 1 ? "👥 ในห้องมีนักผจญภัย " + count + " คน" : "👥 คุณเป็นคนแรกในห้อง"; }
 
-  function showStarted() {
-    view = "started";
-    app().innerHTML =
-      '<div class="pl-msg rpg-card pl-started">' +
-        '<div class="pl-big-ico">⚔️</div>' +
-        '<b>ครูเริ่มการผจญภัยแล้ว!</b>' +
-        '<span>มองที่จอหน้าห้อง · หน้าตอบโจทย์บนมือถือจะมาในขั้นถัดไปของการพัฒนา</span>' +
-        '<div class="pl-who">' + DH.Avatar.render(me.look, me.job, { large: true }) + '</div>' +
-      '</div>';
-  }
-
   var ENDS = {
     no_room: ["🔍", "ไม่พบห้อง " + code, "ห้องอาจปิดไปแล้ว ลองดูรหัสบนจอครูอีกครั้ง"],
     kicked: ["🚪", "ครูเชิญคุณออกจากห้อง", "ถ้าคิดว่าผิดพลาด บอกครูได้เลย"],
@@ -137,7 +126,8 @@
     var first = !me;
     me = m;
     count = m.count || count;
-    if (m.phase !== "LOBBY") return showStarted();
+    if (m.phase !== "LOBBY") { view = "game"; return; }      // the game view follows right after
+    if (DH.PlayGame.active()) { DH.PlayGame.reset(); view = ""; }  // teacher pressed "play again"
     if (!m.ready) { if (view !== "create") showCreator(); return; }
     // Ready: the server accepted (and maybe renamed) the character.
     // (A reconnect while editing must not throw the student out of the creator.)
@@ -159,6 +149,8 @@
       message: function (m) {
         if (m.t === "joined") { try { localStorage.setItem(TOKEN_KEY, m.token); } catch (e) { /* ignore */ } }
         else if (m.t === "you") onYou(m);
+        else if (m.t === "game") { view = "game"; DH.PlayGame.show(m, { send: net.send, me: function () { return me; } }); }
+        else if (m.t === "progress") DH.PlayGame.progress(m);
         else if (m.t === "count") { count = m.count; if ($("plCount")) $("plCount").textContent = countText(); }
         else if (m.t === "char_error") {
           sent = false;

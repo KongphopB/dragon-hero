@@ -29,6 +29,8 @@ COVERAGE = {
     "css": ["index.html"],
     "classroom/js": ["classroom/index.html", "classroom/host.html", "classroom/play.html"],
     "classroom/css": ["classroom/index.html", "classroom/host.html", "classroom/play.html"],
+    "classroom/js/host": ["classroom/host.html"],
+    "classroom/js/play": ["classroom/play.html"],
 }
 
 

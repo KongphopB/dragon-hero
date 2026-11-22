@@ -63,6 +63,17 @@ const server = http.createServer((req, res) => {
   if (url === "/api/info") return sendJson(res, 200, { lan: lanAddresses(), port: PORT });
   const m = url.match(/^\/api\/room\/(\d{6})$/);
   if (m) return sendJson(res, 200, rooms.roomInfo(m[1]));
+  const c = url.match(/^\/api\/room\/(\d{6})\/results\.csv$/);
+  if (c) {
+    const key = new URLSearchParams((req.url || "").split("?")[1] || "").get("key");
+    const out = rooms.resultsCsv(c[1], key);
+    if (!out) { res.writeHead(403); return res.end("Not allowed"); }
+    res.writeHead(200, {
+      "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store",
+      "Content-Disposition": "attachment; filename*=UTF-8''" + encodeURIComponent(out.name)
+    });
+    return res.end(out.csv);
+  }
   if (url === "/healthz") return sendJson(res, 200, { ok: true, rooms: rooms.rooms.size });
 
   const rel = path.posix.normalize(url).replace(/^\/+/, "");

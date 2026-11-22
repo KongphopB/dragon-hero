@@ -90,9 +90,6 @@
         '<div class="lb-empty" id="lbEmpty"><b>รอนักเรียนเข้าห้อง…</b><span>ให้นักเรียนสแกน QR หรือเข้า ' + esc(shortUrl()) + ' แล้วกรอกรหัส</span>' +
           '<button type="button" class="btn-sec" data-bigcode>⤢ ขยายรหัสให้เห็นทั้งห้อง</button></div>' +
         '<div class="lb-feed" id="lbFeed" aria-live="polite"></div>' +
-        '<div class="lb-started" id="lbStarted" hidden><div class="rpg-card">' +
-          '<b>⚔️ เริ่มการผจญภัยแล้ว!</b><span>ฉากออกเดินทางและโจทย์จะมาในขั้นถัดไปของการพัฒนา</span>' +
-          '<button type="button" class="btn-sec" id="lbBackLobby">↩ กลับล็อบบี้ (ทดสอบ)</button></div></div>' +
       '</div>' +
       '<div class="lb-big" id="lbBig" hidden><div class="lb-big-card">' +
         '<div class="lb-big-qr">' + window.QRGen.toSvg(joinUrl(), 260) + '</div>' +
@@ -114,7 +111,6 @@
     $("lbCount").innerHTML = "👥 <b>" + kids.length + "</b> คน" + (creating ? ' <span class="lb-creating">✏️ กำลังสร้างตัวละคร ' + creating + '</span>' : "");
     $("lbStart").disabled = !kids.length || room.phase !== "LOBBY";
     $("lbEmpty").hidden = kids.length > 0;
-    $("lbStarted").hidden = room.phase === "LOBBY";
   }
 
   function panelHtml() {
@@ -129,6 +125,7 @@
       '</dl>' +
       '<div class="lb-panel-sec">ทดสอบ</div>' +
       '<button type="button" class="btn-sec" data-bots="5">🤖 เพิ่มนักเรียนทดสอบ 5 คน' + (bots ? ' <small>(มีอยู่ ' + bots + ')</small>' : '') + '</button>' +
+      (bots ? '<button type="button" class="btn-sec" data-botfast>⚡ ให้บอทตอบเร็ว (ลองเล่นทั้งเกมเร็วๆ)</button>' : '') +
       '<div class="lb-panel-sec">ห้อง</div>' +
       '<button type="button" class="btn-sec lb-danger" data-closeroom>🚪 ปิดห้องนี้</button>';
   }
@@ -303,11 +300,21 @@
           var first = !room;
           room = { code: m.code, hostToken: m.hostToken, settings: m.settings, phase: "LOBBY" };
           try { sessionStorage.setItem(SESSION, JSON.stringify({ code: m.code, hostToken: m.hostToken })); } catch (e) { /* ignore */ }
-          if (first) findJoinBase().then(function (b) { joinBase = b; DH.AvatarColor.ready.then(draw).then(function () { if (room.lastLobby) onLobby(room.lastLobby); }); });
+          if (first) findJoinBase().then(function (b) {
+            joinBase = b;
+            DH.AvatarColor.ready.then(function () { if (inGame) return; draw(); if (room.lastLobby) onLobby(room.lastLobby); });
+          });
         } else if (m.t === "lobby") {
           if (!room) return;
           room.lastLobby = m;
+          if (m.phase === "LOBBY" && inGame) leaveGame();
           if (stage()) onLobby(m);
+        } else if (m.t === "game") {
+          if (!room) return;
+          enterGame();
+          DH.HostGame.show(m, { send: net.send, room: room, joinUrl: joinUrl });
+        } else if (m.t === "progress") {
+          DH.HostGame.progress(m);
         } else if (m.t === "error") {
           backToSetup(m.reason === "no_room" ? "ห้องเดิมหมดอายุหรือถูกปิดแล้ว สร้างห้องใหม่ได้เลย" : "สร้างห้องไม่สำเร็จ (" + m.reason + ")");
         } else if (m.t === "closed") {
@@ -318,6 +325,21 @@
         if (why === "replaced") { cancelAnimationFrame(raf); $("lobby").innerHTML = '<div class="lb-replaced rpg-card"><b>ห้องนี้ถูกเปิดในแท็บอื่นแล้ว</b><span>ใช้หน้าต่างล่าสุดคุมเกมได้เลย</span></div>'; }
       }
     });
+  }
+
+  // The lobby steps aside while the game runs, and comes back for "play again".
+  var inGame = false;
+  function enterGame() {
+    if (inGame) return;
+    inGame = true;
+    cancelAnimationFrame(raf);
+    $("lobby").hidden = true;
+    $("lobby").innerHTML = "";
+  }
+  function leaveGame() {
+    inGame = false;
+    DH.HostGame.hide();
+    DH.AvatarColor.ready.then(function () { draw(); if (room.lastLobby) onLobby(room.lastLobby); });
   }
 
   function onLobby(m) {
@@ -340,10 +362,10 @@
       pop.hidden = true; held = null; return;
     }
     if (t.closest("#lbStart")) { net.send({ t: "host:start" }); return; }
-    if (t.closest("#lbBackLobby")) { net.send({ t: "host:lobby" }); return; }
     if (t.closest("#lbSettings")) { $("lbPanel").innerHTML = panelHtml(); $("lbPanel").hidden = !$("lbPanel").hidden; return; }
     if (t.closest("[data-closepanel]")) { $("lbPanel").hidden = true; return; }
     if (t.closest("[data-bots]")) { net.send({ t: "host:bots", n: 5 }); $("lbPanel").hidden = true; return; }
+    if (t.closest("[data-botfast]")) { net.send({ t: "host:botspeed", speed: 0.12 }); $("lbPanel").hidden = true; toastMsg("บอทจะตอบภายในไม่กี่วินาที"); return; }
     if (t.closest("[data-closeroom]")) {
       if (confirm("ปิดห้อง " + prettyCode(room.code) + "? นักเรียนทุกคนจะออกจากห้อง")) net.send({ t: "host:close" });
       return;

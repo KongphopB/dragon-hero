@@ -146,7 +146,7 @@ async function main() {
     late.send({ t: "join", code: room.code });
     await late.wait((m) => m.t === "joined");
     host2.send({ t: "host:start" });
-    await kids[4].wait((m) => m.t === "you" && m.phase === "STARTED");
+    await kids[4].wait((m) => m.t === "game" && m.phase === "INTRO");
     ok(true, "students are told the game started");
     ok(!!(await late.wait((m) => m.t === "started_without_you")), "a student still on the character screen is told they missed the start");
     const later = client(); await later.ready;
@@ -166,6 +166,8 @@ async function main() {
     await kids[4].wait((m) => m.t === "closed");
     r = await fetch(BASE + "/api/room/" + room.code);
     ok((await r.json()).ok === false, "closing the room tells students and removes it");
+
+    await gameTest();
   } catch (e) {
     failures++;
     console.log("  ✗ " + e.message);
@@ -174,6 +176,118 @@ async function main() {
   }
   console.log(failures ? "\n" + failures + " FAILED" : "\nall passed");
   process.exit(failures ? 1 : 0);
+}
+
+// A whole short game: 3 real students (one always right, one always wrong, one who drops out
+// mid-question and comes back) plus 8 quick bots, played from the departure to the CSV.
+async function gameTest() {
+  console.log("Game");
+  const { DH } = require("./shared");
+  const keyPlace = (qid) => {
+    const q = DH.QUESTIONS.find((x) => x.id === qid);
+    // the same force can appear twice (two contact forces P): those become a list of angles
+    const mk = (list) => list.reduce((o, e) => { const a = Array.isArray(e[1]) ? e[1][0] : e[1]; o[e[0]] = o[e[0]] === undefined ? a : [].concat(o[e[0]], a); return o; }, {});
+    return Array.isArray(q.ex) ? { all: mk(q.ex) } : Object.keys(q.ex).reduce((o, v) => { o[v] = mk(q.ex[v]); return o; }, {});
+  };
+
+  const host = client(); await host.ready;
+  host.send({ t: "host:create", settings: { cls: "test", mode: "sync", length: "short", pace: "normal", pack: "std_all", opts: { autoNext: false } } });
+  const room = await host.wait((m) => m.t === "room");
+  const names = ["เก่ง", "พลาด", "หลุด"];
+  const kids = names.map(() => client());
+  await Promise.all(kids.map((k) => k.ready));
+  kids.forEach((k) => k.send({ t: "join", code: room.code }));
+  const toks = await Promise.all(kids.map((k) => k.wait((m) => m.t === "joined")));
+  kids.forEach((k, i) => k.send({ t: "char", name: names[i], job: i === 0 ? "archer" : "warrior", look: LOOK }));
+  await host.wait((m) => m.t === "lobby" && m.players.length === 3);
+  host.send({ t: "host:bots", n: 8 });
+  await host.next((m) => m.t === "lobby" && m.players.length === 11);
+  host.send({ t: "host:botspeed", speed: 0.05 });
+
+  host.send({ t: "host:start" });
+  const intro = await host.next((m) => m.t === "game" && m.phase === "INTRO");
+  ok(intro.walkers.length === 5 && intro.monster.id === "slime", "departure shows 5 students and the first monster is the slime");
+  ok(intro.qTotal === 8, "short game = 8 questions");
+  const hp0 = intro.monster.maxHp;
+  ok(hp0 === Math.round(1 * 100 * 0.65 * 11), "monster HP scales with class size (11 players)");
+
+  let phase = "INTRO", qSeen = 0, revealOk = false, battleOk = false, boardOk = false, reconnectOk = false, damageOk = false;
+  let wrongCard = 0, stagesSeen = new Set(["slime"]);
+  let drop = kids[2];
+  for (let step = 0; step < 120 && phase !== "SUMMARY"; step++) {
+    host.send({ t: "host:next" });
+    const v = await host.next((m) => m.t === "game" && m.phase !== phase, 15000);
+    phase = v.phase;
+    if (v.monster) stagesSeen.add(v.monster.id);
+    if (phase === "QUESTION") {
+      qSeen++;
+      if (qSeen === 1) ok((!v.q.ex && !v.q.why), "teacher's question view has no answer key while students answer");
+      const pq = await kids[0].wait((m) => m.t === "game" && m.phase === "QUESTION" && m.qNum === v.qNum);
+      if (qSeen === 1) ok((!pq.q.ex && !pq.q.why && pq.endsAt > pq.now), "phones get the question without the key and with a deadline");
+      kids[0].send({ t: "answer", qn: v.qNum, place: keyPlace(v.q.id) });
+      kids[1].send({ t: "answer", qn: v.qNum, place: { all: { W: 90 } } });
+      kids[1].send({ t: "answer", qn: v.qNum, place: keyPlace(v.q.id) });   // second try is ignored
+      if (qSeen === 2) {
+        // student 3 drops out mid-question and comes back
+        drop.sock.close();
+        await sleep(200);
+        drop = client(); await drop.ready;
+        drop.send({ t: "join", code: room.code, token: toks[2].token });
+        const back = await drop.wait((m) => m.t === "game" && m.phase === "QUESTION");
+        reconnectOk = back.qNum === v.qNum && back.answered === false;
+        kids[2] = drop;
+      }
+      drop.send({ t: "answer", qn: v.qNum, place: keyPlace(v.q.id) });
+      // everyone answered (bots are fast) -> server reveals on its own
+      const rv = await host.wait((m) => m.t === "game" && m.phase === "REVEAL" && m.qNum === v.qNum, 15000);
+      phase = "REVEAL";
+      if (qSeen === 1) {
+        revealOk = rv.q.ex && rv.q.why && rv.reveal.answered === 11 && rv.reveal.arrows && Object.keys(rv.reveal.arrows).length > 0;
+        const mine0 = await kids[0].wait((m) => m.t === "game" && m.phase === "REVEAL");
+        const mine1 = await kids[1].wait((m) => m.t === "game" && m.phase === "REVEAL");
+        damageOk = mine0.mine.acc === 1 && mine0.mine.dmg > 100 && mine1.mine.acc < 0.5 && mine1.mine.dmg === 0;
+        const b = rv.reveal;
+        ok(b.full + b.part + b.wrong === 11, "reveal counts every answer");
+      }
+    }
+    if (phase === "BATTLE") {
+      const at = v.battle.attackers;
+      if (!battleOk) {
+        const hits = at.filter((a) => a.hit), misses = at.filter((a) => !a.hit);
+        battleOk = at.length <= 5 && hits.length >= 1 && hits.every((a, i) => i === 0 || a.secs >= hits[i - 1].secs || a.acc < 1);
+        wrongCard += misses.length;
+      }
+    }
+    if (phase === "BOARD" && !boardOk) {
+      boardOk = v.board.length === 10 && v.board.every((r, i) => i === 0 || v.board[i - 1].score >= r.score);
+      const top = v.board.find((r) => r.name === "เก่ง");
+      ok(!!top, "the student who always answers right is on the top-10 board");
+    }
+  }
+  ok(revealOk, "reveal sends the key, explanation and the class's arrows");
+  ok(damageOk, "right answers deal damage (with speed bonus), wrong ones deal none");
+  ok(battleOk, "battle sends up to 5 attackers, fastest correct first");
+  ok(boardOk, "leaderboard is sorted by damage");
+  ok(reconnectOk, "a student who drops mid-question gets the same open question back");
+  ok(qSeen === 8 || stagesSeen.has("dragon"), "the game runs through to the dragon (" + qSeen + " questions, " + [...stagesSeen].join(" > ") + ")");
+  ok(phase === "SUMMARY", "game reaches the class summary");
+  const sum = host.msgs.filter((m) => m.t === "game" && m.phase === "SUMMARY").pop();
+  ok(sum && sum.summary.questions.length === qSeen && Array.isArray(sum.summary.mistakes), "summary lists every question and the class's common mistakes");
+  const fin = host.msgs.filter((m) => m.t === "game" && m.phase === "SUMMARY").pop();
+  ok(fin.board.length === 11 && (fin.result === "win" || fin.result === "lose"), "final board ranks all 11 and has a result");
+  const me = kids[0].msgs.filter((m) => m.t === "game" && m.me).pop();
+  ok(me && me.me.correct === qSeen && me.rank >= 1, "phones get a personal summary" + (me && me.me.correct !== qSeen ? " (correct " + me.me.correct + "/" + qSeen + ", answered " + me.me.answered + ")" : ""));
+
+  let r = await fetch(BASE + "/api/room/" + room.code + "/results.csv?key=" + room.hostToken);
+  const text = await r.text();
+  ok(r.status === 200 && text.split("\r\n").length >= 13 && text.includes("เก่ง"), "teacher can download the results CSV");
+  r = await fetch(BASE + "/api/room/" + room.code + "/results.csv?key=nope");
+  ok(r.status === 403, "CSV needs the teacher's key");
+
+  host.send({ t: "host:lobby" });
+  const lob = await host.wait((m) => m.t === "lobby" && m.phase === "LOBBY");
+  ok(lob.players.length === 11, "play again: everyone is back in the lobby");
+  host.send({ t: "host:close" });
 }
 
 main();

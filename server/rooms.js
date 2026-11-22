@@ -1,8 +1,9 @@
 // Classroom rooms: create, join, character, kick, reconnect, test bots.
-// Milestone 1 stops at the lobby; the game loop (questions, battles) is added in milestone 2.
+// The game itself (questions, battles, ending) lives in game.js.
 "use strict";
 const crypto = require("crypto");
 const { DH } = require("./shared");
+const game = require("./game");
 
 const MAX_ROOMS = 200;
 const MAX_PLAYERS = 60;
@@ -88,6 +89,8 @@ class Room {
     this.hostSeenAt = Date.now();
     this.nextId = 1;
     this.pushTimer = null;
+    this.progressTimer = null;
+    this.game = null;
     rooms.set(this.code, this);
   }
 
@@ -128,6 +131,7 @@ class Room {
     this.hostSeenAt = Date.now();
     sock.sendJson({ t: "room", code: this.code, hostToken: this.hostToken, settings: this.settings });
     sock.sendJson(this.hostView());
+    if (this.game) sock.sendJson(game.hostView(this));
   }
 
   join(sock, tok) {
@@ -144,6 +148,7 @@ class Room {
     p.sock = sock;
     sock.sendJson({ t: "joined", token: p.token });
     sock.sendJson(this.playerView(p));
+    if (this.game && p.ready) sock.sendJson(game.playerView(this, p));
     this.push();
     return { player: p };
   }
@@ -195,18 +200,39 @@ class Room {
     if (this.phase !== "LOBBY" || !this.readyCount()) return;
     // Students still on the character screen are left out of this game.
     this.players.forEach((p) => { if (!p.ready) { if (p.sock) p.sock.sendJson({ t: "started_without_you" }); this.players.delete(p.id); } });
-    this.phase = "STARTED";
-    this.players.forEach((p) => { if (p.sock) p.sock.sendJson(this.playerView(p)); });
+    game.start(this);
     this.push();
   }
 
+  // Everyone gets the new game state right away (phase changes are rare and matter).
+  broadcastGame() {
+    if (!this.game) return;
+    if (this.host) this.host.sendJson(game.hostView(this));
+    this.players.forEach((p) => { if (p.sock && p.ready) p.sock.sendJson(game.playerView(this, p)); });
+  }
+
+  // While a question is open: how many have answered (at most 5 updates a second).
+  pushProgress() {
+    if (this.progressTimer) return;
+    this.progressTimer = setTimeout(() => {
+      this.progressTimer = null;
+      if (!this.game || this.phase !== "QUESTION") return;
+      const n = this.game.answers.size;
+      const msg = { t: "progress", answered: n, players: this.readyCount() };
+      if (this.host) this.host.sendJson(msg);
+      this.players.forEach((p) => { if (p.sock && p.ready) p.sock.sendJson(msg); });
+    }, 200);
+  }
+
   backToLobby() {
+    game.stop(this);
     this.phase = "LOBBY";
     this.players.forEach((p) => { if (p.sock) p.sock.sendJson(this.playerView(p)); });
     this.push();
   }
 
   close() {
+    game.stop(this);
     this.players.forEach((p) => { if (p.sock) { p.sock.sendJson({ t: "closed" }); p.sock.close(4003); } });
     if (this.host) this.host.sendJson({ t: "closed" });
     rooms.delete(this.code);
@@ -260,13 +286,16 @@ function handle(sock, text) {
     else if (m.t === "host:bots") room.addBots(Math.max(1, Math.min(20, Number(m.n) || 5)));
     else if (m.t === "host:start") room.start();
     else if (m.t === "host:lobby") room.backToLobby();
+    else if (m.t === "host:next" && room.game) game.next(room);
+    else if (m.t === "host:botspeed") room.botSpeed = Math.max(0.05, Math.min(1, Number(m.speed) || 1));
     else if (m.t === "host:settings") { room.settings = cleanSettings(m.settings); room.push(); }
     else if (m.t === "host:close") room.close();
     return;
   }
   const p = role.player;
   if (p.sock !== sock || !room.players.has(p.id)) return;
-  if (m.t === "char") room.setChar(p, m);
+  if (m.t === "answer" && room.game && p.ready) game.answer(room, p, m);
+  else if (m.t === "char" && room.phase === "LOBBY") room.setChar(p, m);
   else if (m.t === "unready" && room.phase === "LOBBY") { p.ready = false; sock.sendJson(room.playerView(p)); room.push(); }
 }
 
@@ -286,9 +315,16 @@ setInterval(() => {
   });
 }, 30000).unref();
 
+// Spreadsheet of the class results; only the teacher (host token) may download it.
+function resultsCsv(code, key) {
+  const room = rooms.get(String(code));
+  if (!room || room.hostToken !== key || !room.game) return null;
+  return { csv: game.csv(room), name: "dragon-hero-" + (room.settings.cls || room.code).replace(/[^\w\u0E00-\u0E7F.-]+/g, "_") + ".csv" };
+}
+
 function roomInfo(code) {
   const room = rooms.get(String(code));
   return room ? { ok: true, cls: room.settings.cls, phase: room.phase } : { ok: false };
 }
 
-module.exports = { handle, onClose, roomInfo, rooms, cleanLook, cleanName };
+module.exports = { handle, onClose, roomInfo, resultsCsv, rooms, cleanLook, cleanName };

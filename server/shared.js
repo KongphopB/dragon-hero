@@ -15,7 +15,8 @@ const FILES = [
   "js/data/stages.js",
   "js/data/questions.js",
   "js/core/grading.js",
-  "js/core/adaptive.js"
+  "js/core/adaptive.js",
+  "classroom/js/packs.js"          // question packs offered in room setup
 ];
 
 function load() {

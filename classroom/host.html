@@ -8,12 +8,17 @@
   <link rel="stylesheet" href="../css/theme.css?v=c32ddee7">
   <link rel="stylesheet" href="../css/scenes.css?v=fb1e9508">
   <link rel="stylesheet" href="../css/anim-hero.css?v=60fe7ea6">
+  <link rel="stylesheet" href="../css/anim-monsters.css?v=31f8a075">
+  <link rel="stylesheet" href="../css/anim-fx.css?v=2e1c7c2e">
+  <link rel="stylesheet" href="../css/systems.css?v=f2180ed9">
   <link rel="stylesheet" href="../css/avatar.css?v=a8e1930e">
   <link rel="stylesheet" href="css/classroom.css?v=4c1d21fd">
+  <link rel="stylesheet" href="css/host-game.css?v=833916fe">
 </head>
 <body>
   <main class="cl-shell" id="setup"></main>
   <div id="lobby" hidden></div>
+  <div id="game" hidden></div>
 
   <div class="su-modal" id="peek" hidden role="dialog" aria-modal="true" aria-label="ตัวอย่างโจทย์">
     <div class="rpg-card">
@@ -39,11 +44,20 @@
   <script src="../js/ui/avatar-color.js?v=2a052437"></script>
   <script src="../js/ui/avatar.js?v=d68bf7c4"></script>
   <script src="../js/ui/fbd-board.js?v=f3119790"></script>
+  <script src="../js/data/monster-rigs.js?v=1426e439"></script>
+  <script src="../js/ui/screens/core.js?v=b4f13c79"></script>
+  <script src="../js/ui/screens/common.js?v=16aa03be"></script>
   <script src="js/qr.js?v=327e6e2c"></script>
   <script src="js/net.js?v=58c39834"></script>
   <script src="js/packs.js?v=65704cc7"></script>
   <script src="js/setup.js?v=850c381d"></script>
-  <script src="js/lobby.js?v=2906f8f9"></script>
+  <script src="js/lobby.js?v=f9b8adf5"></script>
+  <script src="js/host/game.js?v=fa3da9e3"></script>
+  <script src="js/host/story.js?v=cb67bb4f"></script>
+  <script src="js/host/question.js?v=71caffd0"></script>
+  <script src="js/host/battle.js?v=695c0988"></script>
+  <script src="js/host/board.js?v=2bd0fedd"></script>
+  <script src="js/host/summary.js?v=05238540"></script>
   <script>DH.Lobby.resumeIfAny();</script>
 </body>
 </html>
