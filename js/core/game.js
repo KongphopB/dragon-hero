@@ -50,7 +50,7 @@
       baseDmg: st.baseDmg
     };
     g.qInStage = 0;
-    g.hearts = g.maxHearts;
+    // Hearts carry over between stages: only the heal card and the priest's ultimate restore them.
     g.knightShieldUsed = false;
   }
 
@@ -324,7 +324,7 @@
       if (intent === "open") dmg = Math.round(dmg * 1.5);
       if (intent === "guard" && !pierce) dmg = Math.round(dmg * 0.5);
     }
-    // Out of hearts = exhausted: every hit does half damage until a heal or the next stage.
+    // Out of hearts = exhausted: every hit does half damage until healed (heal card / priest ultimate).
     var exhausted = g.hearts <= 0;
     if (exhausted && dmg > 0) dmg = Math.round(dmg * EXHAUSTED_MULT);
     // The meteor lands whatever the answer was.

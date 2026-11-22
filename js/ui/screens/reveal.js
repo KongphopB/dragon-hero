@@ -43,8 +43,8 @@
             '<b style="font-size:1.15rem;color:' + (r.dmg >= 0 ? "var(--ok)" : "var(--bad)") + '">' + (r.dmg >= 0 ? "+" : "") + r.dmg + ' ดาเมจ</b>' +
           '</div>' +
           revealTacticsHtml(g, r) +
-          (r.exhausted && r.dmg > 0 ? '<div class="tired-note">😵 หมดแรงอยู่ ดาเมจเหลือครึ่งเดียว · ใช้การ์ดฟื้นฟู 💚 หรือผ่านด่านนี้เพื่อฟื้นหัวใจ</div>' : '') +
-          (!r.exhausted && r.nowExhausted ? '<div class="tired-note">😵 หัวใจหมดแล้ว! ข้อต่อไปดาเมจจะเหลือครึ่งเดียวจนกว่าจะฟื้น</div>' : '') +
+          (r.exhausted && r.dmg > 0 ? '<div class="tired-note">😵 หมดแรงอยู่ ดาเมจเหลือครึ่งเดียว · ใช้การ์ดฟื้นฟู 💚 เพื่อฟื้นหัวใจ</div>' : '') +
+          (!r.exhausted && r.nowExhausted ? '<div class="tired-note">😵 หัวใจหมดแล้ว! ดาเมจจะเหลือครึ่งเดียวจนกว่าจะใช้การ์ดฟื้นฟู 💚</div>' : '') +
           (r.cardEarned ? '<div style="margin-top:6px;color:var(--gold)">🎁 Streak! ได้รับการ์ด ' + DH.CARDS[r.cardEarned].icon + ' ' + DH.CARDS[r.cardEarned].name + '</div>' : '') +
           '<div id="soloRevBoard" style="margin-top:10px"></div>' +
           '<ul class="fb-list">' + r.rows.map(function (row) {
