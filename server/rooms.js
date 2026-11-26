@@ -224,6 +224,11 @@ class Room {
     }, 200);
   }
 
+  // During the card reward: how many students have chosen (teacher screen counter).
+  pushDraft() {
+    if (this.host && this.game && this.phase === "MON_DEFEAT") this.host.sendJson(game.hostView(this));
+  }
+
   backToLobby() {
     game.stop(this);
     this.phase = "LOBBY";
@@ -295,6 +300,7 @@ function handle(sock, text) {
   const p = role.player;
   if (p.sock !== sock || !room.players.has(p.id)) return;
   if (m.t === "answer" && room.game && p.ready) game.answer(room, p, m);
+  else if ((m.t === "card" || m.t === "ult" || m.t === "draft") && room.game) game.act(room, p, m);
   else if (m.t === "char" && room.phase === "LOBBY") room.setChar(p, m);
   else if (m.t === "unready" && room.phase === "LOBBY") { p.ready = false; sock.sendJson(room.playerView(p)); room.push(); }
 }

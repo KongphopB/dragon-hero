@@ -215,3 +215,23 @@
   .hb-row { grid-template-columns: 28px 34px 1fr auto 34px; }
   .hb-track { display: none; }
 }
+
+/* ---------- tactics on the teacher screen (milestone 3) ---------- */
+.hq-intent { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; margin-bottom: 8px; font-size: 1rem; }
+.hq-intent.is-bad { background: rgba(127, 29, 29, 0.35); border: 1px solid #ef4444; }
+.hq-intent.is-good { background: rgba(22, 101, 52, 0.35); border: 1px solid var(--ok); }
+.hq-intent-ico { font-size: 2rem; line-height: 1; }
+.hq-shield-goal { font-size: 0.86rem; color: #93c5fd; margin-bottom: 10px; }
+.ht-box { display: grid; gap: 6px; margin-bottom: 10px; }
+.ht-shield { padding: 8px 12px; border-radius: 12px; font-size: 1rem; }
+.ht-shield.is-up { background: rgba(37, 99, 235, 0.25); border: 2px solid #60a5fa; box-shadow: 0 0 18px rgba(96, 165, 250, 0.35); }
+.ht-shield.is-down { background: rgba(71, 85, 105, 0.3); border: 1px solid #64748b; color: #cbd5e1; }
+.ht-line { font-size: 0.92rem; font-weight: 700; }
+.ht-line.is-bad { color: #fca5a5; }
+.ht-line.is-good { color: #86efac; }
+.ht-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ht-chips small { color: var(--mute); font-weight: 700; margin-right: 2px; }
+.hg-pop.is-card { font-size: 18px; animation-duration: 1.2s; }
+.hg-pop.is-block { font-size: 13px; color: #93c5fd; }
+.hg-pop.is-heal { font-size: 24px; color: #67e8f9; }
+.hg-fx .ult-flash, .hg-fx .ult-banner, .hg-fx .meteor-fx { position: absolute; }

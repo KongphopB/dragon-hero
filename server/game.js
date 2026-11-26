@@ -3,11 +3,14 @@
 //   INTRO -> ENCOUNTER -> QUESTION -> REVEAL -> BATTLE -> BOARD -> QUESTION ...
 //                                                       \-> MON_DEFEAT / MON_ESCAPE -> ENCOUNTER (next stage)
 //   boss stage ends in VICTORY / DEFEAT -> FINAL (podium) -> SUMMARY (class mistakes, CSV)
+// With tactics on (room setting "cards"), tactics.js adds monster intents, cards, hearts,
+// ultimates, the class shield and the card reward after each monster.
 //
 // The server owns the clock, grades every answer with js/core/grading.js and picks questions with
 // js/core/adaptive.js, steering toward the mistakes the whole class makes most.
 "use strict";
 const { DH } = require("./shared");
+const T = require("./tactics");
 
 const LENGTHS = { short: [1, 1, 1, 2, 3], medium: null, long: [3, 3, 3, 4, 5] };
 const PACE = { normal: 1, slow: 1.5, untimed: 0 };
@@ -62,8 +65,11 @@ function newGame(room) {
   const players = [...room.players.values()].filter((p) => p.ready);
   players.forEach((p) => {
     p.score = 0; p.streak = 0; p.answered = 0; p.correct = 0; p.accSum = 0; p.mistakes = {}; p.rank = 0; p.prevRank = 0; p.lastDmg = 0;
+    if (s.opts.cards) T.setupPlayer(p);
   });
   return {
+    tactics: !!s.opts.cards,
+    intent: null,
     n: Math.max(1, players.length),
     perStage: per,
     qTotal: per.reduce((a, b) => a + b, 0),
@@ -99,6 +105,7 @@ function initStage(room) {
     hp: maxHp, maxHp, isBoss: !!st.isBoss, phase: 1, count, baseDmg: st.baseDmg, stage: st.stage
   };
   g.qInStage = 0;
+  if (g.tactics) T.newStage(room);
 }
 
 function bossPhase(m) {
@@ -152,8 +159,13 @@ function startQuestion(room) {
   g.qInStage++;
   g.qNum++;
   g.answers = new Map();
+  if (g.tactics) {
+    room.players.forEach((p) => { if (p.ready) T.resetTurn(p); });
+    g.intent = T.rollIntent(g, room);
+  }
   const mult = PACE[room.settings.pace];
   g.timeTotal = mult ? Math.round((g.q.tm || 25) * mult) : 0;
+  if (g.tactics && g.intent === "haste" && g.timeTotal) g.timeTotal = Math.max(8, Math.round(g.timeTotal * 0.7));
   g.qStartAt = now();
   g.endsAt = g.timeTotal ? g.qStartAt + g.timeTotal * 1000 : 0;
   setPhase(room, "QUESTION", g.timeTotal ? g.timeTotal * 1000 + 600 : 0, () => reveal(room));
@@ -166,6 +178,10 @@ function answer(room, p, msg) {
   const place = cleanPlace(msg.place);
   const t = now();
   const res = DH.Grading.gradeAnswer(g.q, place);
+  if (g.tactics && T.wantsRetry(g, p, res)) {
+    if (p.sock) p.sock.sendJson(playerView(room, p));
+    return;
+  }
   const remRatio = g.timeTotal ? Math.max(0, Math.min(1, (g.endsAt - t) / (g.timeTotal * 1000))) : 0.4;
   g.answers.set(p.id, { place, at: t, secs: (t - g.qStartAt) / 1000, res, remRatio });
   if (p.sock) p.sock.sendJson({ t: "answered", qn: g.qNum });
@@ -220,12 +236,14 @@ function reveal(room) {
   const ready = [...room.players.values()].filter((p) => p.ready);
   let total = 0, full = 0, part = 0, wrong = 0, accSum = 0;
   const codeCount = {};
+  // with tactics, cards / intent / hearts / class shield decide each answer's damage first
+  const tac = g.tactics ? T.resolveRound(room, ready) : null;
   ready.forEach((p) => {
     const a = g.answers.get(p.id);
     p.lastDmg = 0;
     p.lastRes = null;
-    if (!a) { p.streak = 0; return; }
-    const dmg = scoreAnswer(g, p, a);
+    if (!a) { if (!tac) p.streak = 0; return; }
+    const dmg = tac ? a.dmg + (a.meteor || 0) : scoreAnswer(g, p, a);
     a.dmg = dmg;
     p.lastDmg = dmg;
     p.lastRes = a;
@@ -251,16 +269,17 @@ function reveal(room) {
     mistakes: Object.keys(codeCount).sort((a, b) => codeCount[b] - codeCount[a]).slice(0, 3).map((c) => ({
       code: c, count: codeCount[c], label: (DH.MISTAKE_META[c] || {}).label || c, tip: (DH.MISTAKE_META[c] || {}).tip || ""
     })),
-    arrows: classArrows(g)
+    arrows: classArrows(g),
+    tactics: tac
   };
   g.history.push({ qNum: g.qNum, id: g.q.id, t: g.q.t, tg: g.q.tg, topic: g.q.topic, stage: m.stage, full, part, wrong, noAnswer: ready.length - n, avgAcc: g.reveal.avgAcc });
-  g.battle = buildBattle(room, total);
+  g.battle = buildBattle(room, Math.max(0, total), tac);
   setPhase(room, "REVEAL", room.settings.opts.autoNext ? REVEAL_AUTO_MS : 0, () => battle(room));
 }
 
 // Who walks up to the monster: the 3 fastest full-marks answers and 2 wrong ones
 // (topped up with more correct answers when fewer than 2 got it wrong).
-function buildBattle(room, total) {
+function buildBattle(room, total, tac) {
   const g = room.game;
   const rows = [];
   g.answers.forEach((a, id) => { const p = room.players.get(id); if (p) rows.push({ p, a }); });
@@ -275,9 +294,14 @@ function buildBattle(room, total) {
   const hide = room.settings.opts.hideWrong;
   const card = (r, hit) => ({
     id: r.p.id, name: hit || !hide ? r.p.name : "???", job: r.p.job, look: r.p.look,
-    hit, dmg: r.a.dmg || 0, secs: Math.round(r.a.secs * 10) / 10, acc: r.a.res.acc
+    hit, dmg: r.a.dmg || 0, secs: Math.round(r.a.secs * 10) / 10, acc: r.a.res.acc,
+    card: r.p.tac ? r.p.tac.card : null, ult: r.p.tac ? r.p.tac.ult : null, meteor: r.a.meteor || 0
   });
-  return { attackers: hitters.map((r) => card(r, true)).concat(missers.map((r) => card(r, false))), total };
+  return {
+    attackers: hitters.map((r) => card(r, true)).concat(missers.map((r) => card(r, false))), total,
+    shield: !!(tac && tac.shield), effect: tac ? tac.effect : null, intent: room.game.intent,
+    ults: tac ? tac.ults : [], meteor: tac ? tac.meteor : 0
+  };
 }
 
 function battle(room) {
@@ -286,6 +310,9 @@ function battle(room) {
   const m = g.monster;
   const before = m.isBoss ? bossPhase(m) : 1;
   m.hp = Math.max(0, m.hp - g.battle.total);
+  // the monster's own move: charge / regen heal it if it is still standing
+  const eff = g.battle.effect;
+  if (eff && eff.type === "heal" && m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + eff.amount);
   if (m.isBoss) {
     m.phase = bossPhase(m);
     g.battle.phaseUp = m.phase > before && m.hp > 0 ? m.phase : 0;
@@ -299,6 +326,7 @@ function afterBattle(room) {
   const m = g.monster;
   if (m.hp <= 0) {
     if (m.isBoss) { g.result = "win"; return setPhase(room, "VICTORY"); }
+    if (g.tactics) { T.offerDrafts(room); botsPickDrafts(room); }
     return setPhase(room, "MON_DEFEAT");
   }
   if (g.qInStage >= m.count) {
@@ -311,6 +339,7 @@ function afterBattle(room) {
 
 function nextStage(room) {
   const g = room.game;
+  if (g.tactics) T.closeDrafts(room);
   g.stageIdx++;
   initStage(room);
   encounter(room);
@@ -373,9 +402,28 @@ function scheduleBots(room) {
     const qn = g.qNum;
     const delay = (0.15 + Math.random() * 0.7) * limit * (room.botSpeed || 1);
     g.botTimers.push(setTimeout(() => {
-      if (room.phase === "QUESTION" && g.qNum === qn) answer(room, p, { qn, place: botPlace(g.q, p.skill) });
+      if (room.phase !== "QUESTION" || g.qNum !== qn) return;
+      if (g.tactics) T.botTurn(room, p);
+      answer(room, p, { qn, place: botPlace(g.q, p.skill) });
     }, delay));
   });
+}
+
+function botsPickDrafts(room) {
+  room.players.forEach((p) => {
+    if (p.bot && p.draft) setTimeout(() => { if (p.draft) { T.pickDraft(room, p, p.draft[0]); room.pushDraft(); } }, 600 + Math.random() * 2500);
+  });
+}
+
+// Phone actions with tactics: play a card, fire the ultimate, take a reward card.
+function act(room, p, msg) {
+  const g = room.game;
+  if (!g || !g.tactics || !p.ready) return;
+  let changed = false;
+  if (msg.t === "card") changed = T.useCard(room, p, msg);
+  else if (msg.t === "ult") changed = T.useUltimate(room, p, msg);
+  else if (msg.t === "draft") { changed = T.pickDraft(room, p, String(msg.cid)); if (changed) room.pushDraft(); }
+  if (changed && p.sock) p.sock.sendJson(playerView(room, p));
 }
 
 // ---------------------------------------------------------------- views
@@ -411,6 +459,12 @@ function hostView(room) {
     for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
     v.walkers = all.slice(0, 5).map((p) => ({ name: p.name, job: p.job, look: p.look }));
   }
+  v.tactics = g.tactics;
+  if (g.tactics && (ph === "QUESTION" || ph === "REVEAL")) {
+    v.intent = T.intentInfo(g);
+    v.shieldNeed = T.SHIELD_RATE;
+  }
+  if (g.tactics && ph === "MON_DEFEAT") v.drafts = T.draftProgress(room);
   if (ph === "QUESTION" || ph === "REVEAL") {
     v.q = ph === "REVEAL" ? g.q : publicQuestion(g.q);
     v.focus = g.focus ? { code: g.focus, label: (DH.MISTAKE_META[g.focus] || {}).label } : null;
@@ -450,6 +504,11 @@ function playerView(room, p) {
     t: "game", phase: ph, now: now(), autoAt: g.autoAt, qNum: g.qNum, qTotal: g.qTotal, monster: monsterView(g.monster),
     score: p.score || 0, rank: p.rank || 0, players: [...room.players.values()].filter((x) => x.ready).length, streak: p.streak || 0
   };
+  if (g.tactics) {
+    v.tac = T.playerTactics(room, p);
+    if (ph === "REVEAL") { v.tac.last = p.tac; v.tac.round = g.reveal && g.reveal.tactics ? { shield: g.reveal.tactics.shield, shieldPct: g.reveal.tactics.shieldPct, effect: g.reveal.tactics.effect } : null; }
+    if (ph === "MON_DEFEAT") { v.draft = p.draft; v.draftPicked = p.draftPicked; }
+  }
   if (ph === "QUESTION") {
     v.q = publicQuestion(g.q);
     v.timeTotal = g.timeTotal;
@@ -463,6 +522,14 @@ function playerView(room, p) {
     v.mine = a ? { place: a.place, acc: a.res.acc, outcome: a.res.outcome, rows: a.res.rows, dmg: a.dmg || 0, secs: Math.round(a.secs * 10) / 10 } : null;
     v.classAcc = g.reveal.avgAcc;
   }
+  if (ph === "BATTLE") {
+    // the phone replays this student's own blow (or the monster's counter-attack on them)
+    const a = p.lastRes, t = p.tac || {};
+    v.my = { answered: !!a, acc: a ? a.res.acc : 0, protectedBy: t.protectedBy || null, lost: t.lost || 0, card: t.card || null, ult: t.ult || null, meteor: a ? a.meteor || 0 : 0 };
+    v.shield = !!g.battle.shield;
+    v.effect = g.battle.effect;
+  }
+  if (ph === "DEFEAT") v.defeatFate = g.defeatFate;
   if (ph === "BATTLE" || ph === "BOARD") {
     v.lastDmg = p.lastDmg || 0;
     v.inBattle = ph === "BATTLE" && g.battle.attackers.some((x) => x.id === p.id);
@@ -493,4 +560,4 @@ function csv(room) {
   return "﻿" + [head].concat(rows).map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
 }
 
-module.exports = { start, next, answer, stop, hostView, playerView, csv, publicQuestion, cleanPlace, LENGTHS };
+module.exports = { start, next, answer, act, stop, hostView, playerView, csv, publicQuestion, cleanPlace, LENGTHS };

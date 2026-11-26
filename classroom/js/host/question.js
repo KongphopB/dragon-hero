@@ -15,6 +15,15 @@
     '</div>';
   }
 
+  // The monster's move for this question and the class-shield goal (tactics on).
+  function intentHtml(v) {
+    var it = v.intent;
+    if (!it) return "";
+    return '<div class="hq-intent ' + (it.good ? "is-good" : "is-bad") + '"><span class="hq-intent-ico">' + it.icon + '</span>' +
+      '<span><b>มอนเตรียม: ' + K.esc(it.name) + '</b><br>' + K.esc(it.desc) + '</span></div>' +
+      '<div class="hq-shield-goal">🛡️ <b>โล่ทั้งห้อง:</b> ถ้าตอบถูกอย่างน้อยครึ่ง ' + Math.round(v.shieldNeed * 100) + '% ของห้อง มอนทำอะไรใครไม่ได้</div>';
+  }
+
   function progressHtml(v) {
     var pct = v.players ? Math.round(100 * v.answered / v.players) : 0;
     return '<div class="hq-progress"><div class="hq-ptrack"><i style="width:' + pct + '%"></i></div>' +
@@ -40,6 +49,7 @@
           head(v, timerHtml(v)) +
           '<div class="hq-body">' +
             '<div class="hq-text"><p>' + K.esc(v.q.t) + '</p>' +
+              intentHtml(v) +
               '<div id="hqProg">' + progressHtml(v) + '</div>' +
               '<div class="hq-hint">นักเรียนวาดแรงบนมือถือ · ครบทุกคนแล้วจะเฉลยเอง</div>' +
             '</div>' +
@@ -85,6 +95,29 @@
       }).join("") + '</div>' : '<div class="hr-mis is-clean">🌟 ไม่มีจุดผิดซ้ำเลย</div>');
   }
 
+  // Cards, ultimates, the class shield and the monster's move, in one panel.
+  function tacticsHtml(v) {
+    var t = v.reveal.tactics;
+    if (!t) return "";
+    var pct = Math.round(t.shieldPct * 100);
+    var cards = Object.keys(t.cards).map(function (c) { return '<span class="su-chip">' + DH.CARDS[c].icon + ' ' + DH.CARDS[c].name + ' ×' + t.cards[c] + '</span>'; }).join("");
+    var ults = t.ults.map(function (u) { var d = DH.ULTIMATES[u.job]; return '<span class="su-chip">' + d.icon + ' ' + K.esc(u.name) + '</span>'; }).join("");
+    var eff = "";
+    if (t.effect && t.effect.type === "heal") eff = '<div class="ht-line is-bad">💧 ' + K.esc(t.effect.why) + '! มอนจะฟื้นเลือด +' + t.effect.amount.toLocaleString() + '</div>';
+    if (t.effect && t.effect.type === "blocked") eff = '<div class="ht-line is-good">✨ ' + K.esc(t.effect.why) + '</div>';
+    return '<div class="ht-box">' +
+      '<div class="ht-shield ' + (t.shield ? "is-up" : "is-down") + '">' + (t.shield
+        ? '🛡️ <b>โล่ทั้งห้องขึ้น!</b> ตอบถูก ' + pct + '% · ไม่มีใครเสียหัวใจ'
+        : '💔 <b>โล่ทั้งห้องไม่ขึ้น</b> ตอบถูก ' + pct + '% (ต้อง ' + Math.round(v.shieldNeed * 100) + '%)') + '</div>' +
+      eff +
+      (t.heartsLost ? '<div class="ht-line is-bad">💥 ' + t.heartsLost + ' คนเสียหัวใจ' + (v.intent && v.intent.id === "heavy" ? ' (โจมตีหนัก −2)' : '') + '</div>' : '') +
+      (t.stolen ? '<div class="ht-line is-bad">🫳 มอนขโมยการ์ดไป ' + t.stolen + ' ใบ</div>' : '') +
+      (t.meteor ? '<div class="ht-line is-good">☄️ อุกกาบาตรวม ' + t.meteor.toLocaleString() + ' ดาเมจ</div>' : '') +
+      (cards ? '<div class="ht-chips"><small>การ์ดที่ใช้</small>' + cards + '</div>' : '') +
+      (ults ? '<div class="ht-chips"><small>ท่าไม้ตาย</small>' + ults + '</div>' : '') +
+    '</div>';
+  }
+
   function drawRevealBoard(v) {
     var multi = !Array.isArray(v.q.ex);
     mountBoard(document.getElementById("hqBoard"), v.q, {
@@ -104,7 +137,7 @@
         '<div class="hq-card is-reveal" id="hqCard">' +
           head(v, '<span class="hq-num hq-key">✅ เฉลย</span>') +
           '<div class="hq-body">' +
-            '<div class="hq-text">' + statsHtml(v) +
+            '<div class="hq-text">' + statsHtml(v) + tacticsHtml(v) +
               '<div class="hr-why">' + K.esc(v.q.why).replace(/\n/g, "<br>") + '</div>' +
             '</div>' +
             '<div class="hq-board-wrap">' +

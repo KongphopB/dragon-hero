@@ -56,6 +56,13 @@
       monFx();
 
       var t = 450;
+      // an ultimate in this round: a flash and its name across the screen first
+      if (b.ults && b.ults.length) {
+        var u0 = DH.ULTIMATES[b.ults[0].job];
+        K.$("hgFx").insertAdjacentHTML("beforeend", '<div class="ult-flash" style="--ult:' + u0.color + '"></div><div class="ult-banner" style="--ult:' + u0.color + '">' + u0.icon + ' ' + u0.name + (b.ults.length > 1 ? ' +' + (b.ults.length - 1) : '') + '!</div>');
+        t += 900;
+      }
+      if (b.meteor) later(t - 300, function () { K.$("hgFx").insertAdjacentHTML("beforeend", '<div class="meteor-fx"><span></span></div>'); });
       b.attackers.forEach(function (a, i) {
         var h = heroes[i];
         if (a.hit) {
@@ -64,6 +71,7 @@
             h.classList.add("anim-atk", "atk-" + style, "is-acting");
             K.restartMonsterAnim("anim-mon-hurt");
             impact("on-mon fx-" + style);
+            if (a.card) K.pop(h, DH.CARDS[a.card].icon, "is-card");
             later(520, function () {
               var mon = K.$("hgWorld").querySelector(".monster-obj");
               K.pop(mon, "+" + a.dmg.toLocaleString(), "is-hit");
@@ -76,10 +84,11 @@
             var slot = K.$("hgWorld").querySelector(".monster-slot");
             slot.style.setProperty("--dash", K.gapTo(h) + "px");
             heroFx(h);
-            h.classList.add("anim-hurt", "is-acting");
+            // the class shield turns the counter-attack into a block
+            h.classList.add(b.shield ? "anim-block" : "anim-hurt", "is-acting");
             K.restartMonsterAnim("anim-mon-lunge");
-            impact("on-hero" + (m.id === "dragon" ? " fx-dragon-fire" : (m.id === "goblin" || m.id === "fenrir" ? " fx-mon-slash" : " fx-slam")));
-            later(650, function () { K.pop(h, "💥 พลาด", "is-miss"); });
+            impact("on-hero" + (b.shield ? " fx-block" : (m.id === "dragon" ? " fx-dragon-fire" : (m.id === "goblin" || m.id === "fenrir" ? " fx-mon-slash" : " fx-slam"))));
+            later(650, function () { K.pop(h, b.shield ? "🛡️ โล่ทั้งห้อง!" : "💥 พลาด", b.shield ? "is-block" : "is-miss"); });
           });
           t += STEP_MISS;
         }
@@ -89,6 +98,7 @@
       later(t + 150, function () {
         var mon = K.$("hgWorld").querySelector(".monster-obj");
         if (b.total > 0) K.pop(mon, "-" + b.total.toLocaleString(), "is-total");
+        if (b.effect && b.effect.type === "heal" && m.hp > 0) later(700, function () { K.pop(mon, "+" + b.effect.amount.toLocaleString() + " 💧", "is-heal"); });
         K.bar(v);
         if (m.hp <= 0) K.setMonsterAnim("anim-mon-dead");
         else K.setMonsterAnim("anim-mon-idle");
@@ -99,7 +109,8 @@
           var bg = K.$("hgWorld").querySelector(".scene-bg");
           if (bg) bg.style.filter = m.phase === 3 ? "brightness(0.62) contrast(1.15) saturate(1.25)" : "sepia(0.35) saturate(1.5) hue-rotate(-18deg) brightness(0.9)";
         }
-        K.caption('⚔️ ทั้งห้องสร้างดาเมจรวม <b>' + b.total.toLocaleString() + '</b>' +
+        K.caption((b.shield ? '🛡️ โล่ทั้งห้องกันการสวนกลับไว้ได้ · ' : '') + '⚔️ ทั้งห้องสร้างดาเมจรวม <b>' + b.total.toLocaleString() + '</b>' +
+          (b.effect && b.effect.type === "heal" ? ' · 💧 มอนฟื้น +' + b.effect.amount.toLocaleString() : '') +
           '<span>' + (m.hp <= 0 ? 'มอนสเตอร์ล้มแล้ว!' : 'มอนสเตอร์เหลือ HP ' + m.hp.toLocaleString() + ' · เหลืออีก ' + Math.max(0, m.count - v.qInStage) + ' ข้อในด่านนี้') + '</span>',
           m.hp <= 0 ? "is-good" : "");
       });

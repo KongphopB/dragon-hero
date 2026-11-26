@@ -43,12 +43,21 @@
     }
   });
 
+  function draftLine(v) {
+    if (!v.drafts) return 'ทั้งห้องร่วมมือกันได้ยอดเยี่ยม ไปด่านต่อไปกัน';
+    var d = v.drafts;
+    return '🎁 ทุกคนเลือกการ์ดรางวัลบนมือถือ · เลือกแล้ว <b>' + d.picked + '/' + d.total + '</b>' + (d.picked < d.total ? ' (กดไปต่อได้เลย คนที่ยังไม่เลือกจะได้การ์ดสุ่ม)' : ' ครบแล้ว!');
+  }
+
   DH.HostGame.scene(["MON_DEFEAT", "MON_ESCAPE"], {
+    update: function (v) {
+      if (v.phase === "MON_DEFEAT") K.caption('💥 <b>โค่น ' + K.esc(v.monster.name.split(" (")[0]) + ' สำเร็จ!</b><span>' + draftLine(v) + '</span>', "is-good");
+    },
     enter: function (v) {
       var dead = v.phase === "MON_DEFEAT", m = v.monster;
       K.setMonsterAnim(dead ? "anim-mon-dead" : "anim-mon-flee");
       K.caption(dead
-        ? '💥 <b>โค่น ' + K.esc(m.name.split(" (")[0]) + ' สำเร็จ!</b><span>ทั้งห้องร่วมมือกันได้ยอดเยี่ยม ไปด่านต่อไปกัน</span>'
+        ? '💥 <b>โค่น ' + K.esc(m.name.split(" (")[0]) + ' สำเร็จ!</b><span>' + draftLine(v) + '</span>'
         : '💨 <b>' + K.esc(m.name.split(" (")[0]) + ' หนีไปได้!</b><span>เลือดที่เหลือ +' + m.hp.toLocaleString() + ' HP ถูกส่งไปเพิ่มให้มังกรบอส (รวม +' + v.bossBonusHp.toLocaleString() + ')</span>',
         dead ? "is-good" : "is-warn");
       K.setButtons("มุ่งหน้าสู่ด่านถัดไป ▶");

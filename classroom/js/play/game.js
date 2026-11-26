@@ -2,7 +2,7 @@
 // answering, seeing your own result, and knowing your damage and rank.
 //   DH.PlayGame.show(view, { send, me })   view = the server's "game" message for this student
 (function () {
-  var DH = window.DH;
+  var DH = window.DH, PT = DH.PlayTactics;
   var v = null, ctx = null, skew = 0, tick = 0;
   var draft = {}, draftQn = 0, board = null, sentQn = 0;
 
@@ -14,7 +14,7 @@
   function hud() {
     var me = ctx.me(), jb = DH.JOBS[me.job] || DH.JOBS.warrior;
     return '<div class="pg-hud">' +
-      '<span class="pg-me">' + jb.icon + ' ' + esc(me.name) + '</span>' +
+      '<span class="pg-me">' + jb.icon + ' ' + esc(me.name) + (v.tac ? ' ' + PT.hearts(v.tac) : '') + '</span>' +
       '<span class="pg-score">⚔️ ' + (v.score || 0).toLocaleString() + '</span>' +
       (v.rank ? '<span class="pg-rank">#' + v.rank + '<small>/' + v.players + '</small></span>' : '') +
     '</div>';
@@ -27,44 +27,70 @@
     return '<div class="pg-mon"><b>' + esc(m.name.split(" (")[0]) + '</b><div class="pg-mon-track"><i style="width:' + pct + '%"></i></div><span>HP ' + m.hp.toLocaleString() + '</span></div>';
   }
 
-  function watch(icon, title, sub, extra) {
-    return hud() + monsterMini() +
-      '<div class="rpg-card pg-watch"><div class="pl-big-ico">' + icon + '</div><b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + (extra || '') + '</div>';
-  }
-
   function hero(opts) { var me = ctx.me(); return '<div class="pg-hero">' + DH.Avatar.render(me.look, me.job, opts || {}) + '</div>'; }
 
   // ---------------------------------------------------------------- per phase
+  // Like single-player: your own hero faces the monster; the question only opens when the teacher starts it.
+  function onStage(sceneHtml, text, cls, extra) {
+    return hud() + sceneHtml + '<div class="rpg-card pg-cap' + (cls ? " " + cls : "") + '">' + text + (extra || "") + '</div>';
+  }
+  function scene(o) { return DH.PlayScene.html(v, ctx.me(), o); }
+  function monName() { return esc(v.monster.name.split(" (")[0]); }
+  var WAIT_Q = '<div class="pg-waitq">⏳ รอครูกดเริ่มทำโจทย์ แล้วโจทย์จะขึ้นที่นี่</div>';
+
+  function rankCard() {
+    var mv = v.move > 0 ? '<span class="pg-up">▲ ขึ้น ' + v.move + ' อันดับ</span>' : (v.move < 0 ? '<span class="pg-down">▼ ลง ' + (-v.move) + ' อันดับ</span>' : '');
+    return '<div class="pg-rankrow' + (v.rank && v.rank <= 3 ? " rank-frame-" + v.rank : "") + '">' +
+      '<span>อันดับของคุณ</span><b class="pg-bigrank">#' + v.rank + '<small>/' + v.players + '</small></b>' + mv +
+      '<div class="pg-total">ดาเมจสะสม ⚔️ ' + v.score.toLocaleString() + (v.lastDmg ? ' <small>(+' + v.lastDmg.toLocaleString() + ')</small>' : '') + '</div>' +
+      (v.streak >= 2 ? '<div class="pg-streak">🔥 ถูกติดกัน ' + v.streak + ' ข้อ</div>' : '') +
+    '</div>';
+  }
+
   var SCREENS = {
-    INTRO: function () { return watch("🎬", "ออกเดินทางแล้ว!", "มองที่จอหน้าห้อง ทุกคนกำลังเดินออกจากเมือง", hero({ walking: true, large: true })); },
+    INTRO: function () {
+      var me = ctx.me();
+      return hud() +
+        '<div class="scene-stage pg-stage"><div class="crane-world"><img class="crane-bg" src="../assets/bg/bg_depart_crane.webp" alt="">' +
+          '<div class="crane-walker">' + DH.Avatar.render(me.look, me.job, { walking: true, backView: true }) + '</div></div><div class="scene-scrim"></div></div>' +
+        '<div class="rpg-card pg-cap">🎬 <b>' + esc(me.name) + '</b> เดินออกจากประตูเมือง มุ่งหน้าสู่ทุ่งหญ้ากว้างใหญ่…</div>';
+    },
     ENCOUNTER: function () {
-      return watch(v.monster.isBoss ? "🔥" : "⚠️", (v.monster.isBoss ? "บอสใหญ่: " : "เจอ ") + esc(v.monster.name.split(" (")[0]) + "!",
-        "เตรียมพร้อม · โจทย์จะขึ้นบนมือถือเมื่อครูกดเริ่ม", hero({ large: true }));
+      var m = v.monster;
+      return onStage(scene({ monAnim: "anim-mon-enter" }),
+        (m.isBoss ? '🔥 <b>บอสใหญ่ปรากฏตัว!</b> ' : '⚠️ <b>พบศัตรูขวางทาง!</b> ') + monName() + '<div class="pg-sub">ต้องสู้ ' + m.count + ' ข้อ · ทั้งห้องช่วยกันตี</div>',
+        m.isBoss ? "is-boss" : "", WAIT_Q);
     },
     QUESTION: question,
     REVEAL: reveal,
     BATTLE: function () {
-      var mine = v.lastDmg > 0;
-      var title = !v.inBattle ? "ดูฉากต่อสู้บนจอหน้าห้อง"
-        : (mine ? "คุณได้ออกไปโจมตี! ดูจอหน้าห้อง" : "คุณออกไปสู้ แต่โดนมอนสวนกลับ! ดูจอหน้าห้อง");
-      return watch(mine || !v.inBattle ? "⚔️" : "💥", title,
-        mine ? "คุณสร้างดาเมจ <b>+" + v.lastDmg.toLocaleString() + "</b> ในข้อนี้" : "ข้อนี้คุณยังไม่ได้ดาเมจ ข้อหน้าเอาใหม่!",
-        hero({ large: true }));
+      var b = DH.PlayScene.battle(v, ctx.me());
+      return onStage(b.scene, b.text, b.good ? "is-good" : "is-bad");
     },
     BOARD: function () {
-      var mv = v.move > 0 ? '<span class="pg-up">▲ ขึ้น ' + v.move + ' อันดับ</span>' : (v.move < 0 ? '<span class="pg-down">▼ ลง ' + (-v.move) + ' อันดับ</span>' : '');
-      return hud() + monsterMini() +
-        '<div class="rpg-card pg-rankcard' + (v.rank && v.rank <= 3 ? " rank-frame-" + v.rank : "") + '">' +
-          '<span>อันดับของคุณ</span><b class="pg-bigrank">#' + v.rank + '</b>' + mv +
-          '<div class="pg-total">ดาเมจสะสม ⚔️ ' + v.score.toLocaleString() + (v.lastDmg ? ' <small>(+' + v.lastDmg.toLocaleString() + ')</small>' : '') + '</div>' +
-          (v.streak >= 2 ? '<div class="pg-streak">🔥 ถูกติดกัน ' + v.streak + ' ข้อ</div>' : '') +
-        '</div>' +
-        '<div class="pg-tip">ข้อถัดไปกำลังจะมา ตอบให้ถูกและเร็วเพื่อดาเมจที่มากขึ้น</div>';
+      return onStage(scene({}), rankCard(), "", WAIT_Q);
     },
-    MON_DEFEAT: function () { return watch("💥", "โค่น " + esc(v.monster.name.split(" (")[0]) + " สำเร็จ!", "ทั้งห้องช่วยกันได้เยี่ยม ไปด่านต่อไป"); },
-    MON_ESCAPE: function () { return watch("💨", esc(v.monster.name.split(" (")[0]) + " หนีไปได้!", "เลือดที่เหลือไปเพิ่มให้มังกรบอส ต้องตีให้แรงขึ้น!"); },
-    VICTORY: function () { return watch("🎉", "ปราบมังกรสำเร็จ!", "ดูจอหน้าห้อง ใครคือฮีโร่ของห้อง?", hero({ large: true })); },
-    DEFEAT: function () { return watch("🐉", "มังกรยังไม่ล้ม…", "ดาเมจรวมยังไม่พอ ดูจอหน้าห้องเพื่อดูอันดับ"); },
+    MON_DEFEAT: function () {
+      return onStage(scene({ monAnim: "anim-mon-dead", heroAnim: "anim-walk" }),
+        '💥 <b>โค่น ' + monName() + ' สำเร็จ!</b><div class="pg-sub">' +
+          (v.tac ? (v.draftPicked ? "รอเพื่อนเลือกการ์ด แล้วครูจะพาไปด่านต่อไป" : "เลือกการ์ดรางวัลก่อนไปด่านต่อไป") : "ทั้งห้องช่วยกันได้เยี่ยม รอครูพาไปด่านต่อไป") + '</div>',
+        "is-good", v.tac ? PT.draftHtml(v) : "");
+    },
+    MON_ESCAPE: function () {
+      return onStage(scene({ monAnim: "anim-mon-flee" }),
+        '💨 <b>' + monName() + ' หนีไปได้!</b><div class="pg-sub">เลือดที่เหลือไปเพิ่มให้มังกรบอส ต้องตีให้แรงขึ้น!</div>', "is-warn");
+    },
+    VICTORY: function () {
+      return onStage(scene({ monAnim: "anim-mon-dead", heroAnim: "anim-walk", bgStyle: "filter:brightness(0.95)" }),
+        '🎉 <b>ชัยชนะ!</b> ห้องเราโค่นมังกรเพลิงบรรพกาลได้สำเร็จ!<div class="pg-sub">ดูจอหน้าห้อง ใครคือฮีโร่ของห้อง?</div>', "is-good");
+    },
+    DEFEAT: function () {
+      var eat = v.defeatFate === "eat";
+      return onStage(scene({ monAnim: "anim-mon-lunge", heroAnim: "anim-hurt", bgStyle: "filter:brightness(0.65) saturate(1.3)",
+          overlay: '<div class="' + (eat ? "dragon-eat-overlay" : "dragon-fire-overlay") + '"></div>' }),
+        (eat ? '🐉 <b>พ่ายแพ้…</b> ดาเมจไม่พอ ถูกมังกรกลืนลงท้อง!' : '🔥 <b>พ่ายแพ้…</b> ดาเมจไม่พอ ถูกเปลวไฟมังกรเผาวอด!') +
+        '<div class="pg-sub">ดูจอหน้าห้องเพื่อดูอันดับ</div>', "is-bad");
+    },
     FINAL: finalScreen,
     SUMMARY: finalScreen
   };
@@ -80,7 +106,9 @@
       return hud() + timerBar() +
         '<div class="rpg-card pg-watch pg-sent"><div class="pl-big-ico">✅</div><b>ส่งคำตอบแล้ว!</b><span>รอเพื่อนส่งให้ครบ <b id="pgCount">' + (v.count || 0) + '/' + v.players + '</b></span>' + hero({ large: true }) + '</div>';
     }
-    return hud() + timerBar() +
+    var me = ctx.me();
+    return hud() + monsterMini() + timerBar() +
+      (v.tac ? PT.intentBar(v.tac) + PT.ultBar(v.tac, me.job) + PT.hand(v.tac) : '') +
       '<div class="rpg-card pg-q">' +
         '<div class="pg-qhead"><span>📜 ข้อ ' + v.qNum + '/' + v.qTotal + '</span><span class="su-chip">' + esc(q.lv) + '</span><span class="su-chip">' + esc(q.tg) + '</span></div>' +
         '<p class="pg-qtext">' + esc(q.t) + '</p>' +
@@ -102,6 +130,7 @@
       '<div class="rpg-card pg-res is-' + t[2] + '">' +
         '<div class="pg-res-head"><b>' + t[0] + ' ' + t[1] + '</b><b class="pg-dmg">' + (mine && mine.dmg ? '+' + mine.dmg.toLocaleString() : '+0') + ' ดาเมจ</b></div>' +
         (mine ? '<div class="pg-res-sub">ตอบใน ' + mine.secs + ' วิ · ห้องนี้ถูกเฉลี่ย ' + Math.round(v.classAcc * 100) + '%</div>' : '') +
+        (v.tac ? PT.revealLog(v.tac, ctx.me().job) : '') +
         '<div id="pgRevBoard"></div>' +
         (mine ? '<ul class="fb-list">' + mine.rows.map(function (row) {
           if (row.header) return '<li style="color:var(--accent);font-weight:800">' + esc(row.header) + '</li>';
@@ -137,11 +166,16 @@
   function afterDraw() {
     if (v.phase === "QUESTION" && $("pgBoard")) {
       if (draftQn !== v.qNum) { draft = {}; draftQn = v.qNum; }
-      board = window.FBD.mount($("pgBoard"), v.q, {
+      var q = JSON.parse(JSON.stringify(v.q));
+      board = window.FBD.mount($("pgBoard"), q, Object.assign({
         biome: v.monster && v.monster.id,
         initialState: Object.keys(draft).length ? draft : undefined,
         onChange: function (st) { draft = st; }
+      }, v.tac ? PT.boardOpts(v.tac, q) : {}));
+      document.querySelectorAll("[data-card]").forEach(function (b) {
+        b.onclick = function () { b.disabled = true; ctx.send({ t: "card", qn: v.qNum, idx: Number(b.dataset.card), cid: b.dataset.cid }); };
       });
+      if ($("ptUlt")) $("ptUlt").onclick = function () { $("ptUlt").disabled = true; ctx.send({ t: "ult", qn: v.qNum }); };
       $("pgSubmit").onclick = function () {
         var place = board ? board.getState() : draft;
         sentQn = v.qNum;
@@ -149,6 +183,14 @@
         if (navigator.vibrate) navigator.vibrate(30);
         draw();
       };
+    }
+    if (v.phase === "MON_DEFEAT") {
+      document.querySelectorAll("[data-draft]").forEach(function (b) {
+        b.onclick = function () {
+          document.querySelectorAll("[data-draft]").forEach(function (x) { x.disabled = true; });
+          ctx.send({ t: "draft", cid: b.dataset.draft });
+        };
+      });
     }
     if (v.phase === "REVEAL" && $("pgRevBoard")) {
       window.FBD.mount($("pgRevBoard"), v.q, {
@@ -164,6 +206,7 @@
     var f = SCREENS[v.phase];
     if (!f) return;
     app().innerHTML = '<div class="pg">' + f() + '</div>';
+    if (app().querySelector(".actors-row")) DH.PlayScene.after();
     afterDraw();
     clock();
   }
@@ -182,10 +225,14 @@
     if (view.now) skew = view.now - Date.now();
     var same = v && v.phase === view.phase && v.qNum === view.qNum;
     var wasAnswered = v && v.answered;
+    var tacBefore = v && v.tac ? JSON.stringify([v.tac.armed, v.tac.ultArmed, v.tac.hint, v.tac.retry, v.tac.cards, v.tac.hearts]) : "";
+    var tacNow = view.tac ? JSON.stringify([view.tac.armed, view.tac.ultArmed, view.tac.hint, view.tac.retry, view.tac.cards, view.tac.hearts]) : "";
     v = view;
-    // An open question must not be redrawn (it would wipe the arrows being placed) unless
-    // the server says we already answered.
-    if (same && view.phase === "QUESTION" && !(view.answered && !wasAnswered)) { clock(); return; }
+    // Second chance: the server sent the answer back, so the question opens again.
+    if (view.phase === "QUESTION" && view.tac && view.tac.retry && !view.answered && sentQn === view.qNum) sentQn = 0;
+    // An open question is only redrawn when something about it changed (a card, the ultimate,
+    // a second chance, or the server saying we answered); the arrows being placed are kept.
+    if (same && view.phase === "QUESTION" && !(view.answered && !wasAnswered) && tacBefore === tacNow) { clock(); return; }
     if (view.phase === "QUESTION" && draftQn !== view.qNum && navigator.vibrate) navigator.vibrate([40, 60, 40]);
     draw();
     clearInterval(tick);

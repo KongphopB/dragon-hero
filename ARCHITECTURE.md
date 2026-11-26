@@ -42,6 +42,7 @@
 | Student phone: join, character, waiting (หน้ามือถือนักเรียน) | `classroom/js/play.js` | — |
 | Room rules on the server: join, names, kick, bots (กติกาห้อง) | `server/rooms.js` | `npm test` |
 | Class game rules: monster HP per class size, damage, who attacks, boss, order of phases (กติกาเกมทั้งห้อง) | `server/game.js` | `npm test` |
+| Cards / intents / hearts / ultimates / class shield in class mode (การ์ดในห้องเรียน) | `server/tactics.js` (rules), `classroom/js/play/tactics.js` (phone UI) | `npm test` |
 | Teacher game screen: one file per phase (จอครูระหว่างเกม) | `classroom/js/host/` (`game.js` = world + top bar, `story.js`, `question.js`, `battle.js`, `board.js`, `summary.js`) | — |
 | Student phone during the game (มือถือระหว่างเกม) | `classroom/js/play/game.js` | — |
 | Game screen styles (หน้าตาจอเกม) | `classroom/css/host-game.css` (teacher), `classroom/css/play-game.css` (phone) | — |
@@ -127,13 +128,14 @@ dragon hero/
 │  ├─ css/                  # classroom.css (landing/setup/lobby), host-game.css, play-game.css
 │  └─ js/                   # landing, setup, packs, lobby, play, net (WebSocket), qr
 │     ├─ host/              # teacher game screen: game (router, world, top bar), story, question, battle, board, summary
-│     └─ play/game.js       # student phone during the game
+│     └─ play/              # student phone during the game: game.js, tactics.js (hand, hearts, ultimate, reward)
 ├─ server/                  # Node classroom server, no npm packages
 │  ├─ index.js              # HTTP (serves classroom/ js/ css/ assets/ only) + WebSocket at /ws
 │  ├─ ws.js                 # Minimal WebSocket implementation
 │  ├─ shared.js             # Loads js/data + js/core into Node (single source of truth)
 │  ├─ rooms.js              # Rooms, players, validation, kick, reconnect, bots
 │  ├─ game.js               # Class game loop: questions, grading, damage, battles, boss, ranking, CSV
+│  ├─ tactics.js            # Class tactics: intents, cards, hearts, ultimates, class shield, card reward
 │  └─ test.js               # npm test: end-to-end test over real WebSockets
 ├─ tools/
 │  ├─ stamp.py              # Cache-busting ?v= stamps (run before every push)
@@ -164,4 +166,5 @@ dragon hero/
 9. **Avatar art pipeline:** characters are generated, not hand-drawn. `python tools/avatar/build_parts.py` draws every part as smooth shapes at 8x (`shapes/`, `hires.py`) or as small pixel art (`pixel_parts.py`), lights them with colour-key pixels (`shade.py`), and writes them all into `js/data/avatar-sprites.js`. The game swaps the key colours for the player's choices in `js/ui/avatar-color.js`, whose `ramp()` must stay in step with `tools/avatar/shade.py`. Sprites are embedded as data URLs so recolouring also works from `file://`. The generator is deterministic: rerunning it without art changes leaves `avatar-sprites.js` byte-for-byte the same, so any diff in that file is a real art change.
 10. **Classroom server rules:** the server never trusts a phone — names are trimmed and filtered, looks are rebuilt from `js/data/avatar-catalog.js` (`cleanLook` in `server/rooms.js`), only the teacher's socket may send `host:*` messages, and each connection is rate-limited. Rooms live in memory: restarting the server ends every room (pages handle this with a message). Students reconnect with a per-room token (`localStorage` `dh_cl_<code>`); the teacher page reconnects with `sessionStorage` `dh_host_room`. Classroom pages share the student's character with single-player (`dh_solo_char`).
 11. **Class game loop (sync mode):** `INTRO → ENCOUNTER → QUESTION → REVEAL → BATTLE → BOARD → …`, a stage ends in `MON_DEFEAT` / `MON_ESCAPE`, the dragon in `VICTORY` / `DEFEAT`, then `FINAL` (podium) and `SUMMARY`. The server owns the clock (`endsAt` timestamps; clients correct for clock skew), grades with `js/core/grading.js`, and picks questions with `js/core/adaptive.js` using the whole class's mistakes. Monster HP = questions × base damage × 0.65 × number of players. A question closes early once every connected student has answered. Phones never receive the answer key before REVEAL (`publicQuestion`). The BATTLE shows the 3 fastest full-marks answers and up to 2 wrong ones (topped up with more correct answers).
-12. **localStorage keys:** `dh_solo_char` (character), `dh_solo_run` (saved run), `dh_tut_done` (tutorial finished), `dh_sfx` (sound on/off), `dh_unlocks` (cosmetic unlocks), `dh_host_setup` (teacher's last room settings), `dh_cl_<code>` (student's token for one room).
+12. **Class tactics (room option "cards", on by default):** one monster intent per question for the whole class (same weights as single-player); every student has their own hand (starts with their job's card), 3 hearts kept across stages, and an ultimate gauge. **Class shield (feature 4):** if at least 70% of the class answers at least half right, the monster's move fails for everyone that turn (no hearts lost, no stealing, no healing) and wrong attackers block instead of getting hit. Charge heals the monster 15% if the class deals less than half its possible base damage; regen heals 15% if fewer than half get full marks. In class the server owns the clock, so ❄️ freeze gives the full speed bonus instead of stopping time; x-ray / cut hints are sent by the server because phones never hold the key. After each monster every student picks 1 of 3 cards (mage 4); the teacher can move on and the rest get a random card.
+13. **localStorage keys:** `dh_solo_char` (character), `dh_solo_run` (saved run), `dh_tut_done` (tutorial finished), `dh_sfx` (sound on/off), `dh_unlocks` (cosmetic unlocks), `dh_host_setup` (teacher's last room settings), `dh_cl_<code>` (student's token for one room).

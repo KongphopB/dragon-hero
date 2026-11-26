@@ -168,6 +168,7 @@ async function main() {
     ok((await r.json()).ok === false, "closing the room tells students and removes it");
 
     await gameTest();
+    await tacticsTest();
   } catch (e) {
     failures++;
     console.log("  ✗ " + e.message);
@@ -211,6 +212,7 @@ async function gameTest() {
   const hp0 = intro.monster.maxHp;
   ok(hp0 === Math.round(1 * 100 * 0.65 * 11), "monster HP scales with class size (11 players)");
 
+  let sawBoard = false;
   let phase = "INTRO", qSeen = 0, revealOk = false, battleOk = false, boardOk = false, reconnectOk = false, damageOk = false;
   let wrongCard = 0, stagesSeen = new Set(["slime"]);
   let drop = kids[2];
@@ -258,6 +260,7 @@ async function gameTest() {
         wrongCard += misses.length;
       }
     }
+    if (phase === "BOARD") sawBoard = true;
     if (phase === "BOARD" && !boardOk) {
       boardOk = v.board.length === 10 && v.board.every((r, i) => i === 0 || v.board[i - 1].score >= r.score);
       const top = v.board.find((r) => r.name === "เก่ง");
@@ -267,7 +270,10 @@ async function gameTest() {
   ok(revealOk, "reveal sends the key, explanation and the class's arrows");
   ok(damageOk, "right answers deal damage (with speed bonus), wrong ones deal none");
   ok(battleOk, "battle sends up to 5 attackers, fastest correct first");
-  ok(boardOk, "leaderboard is sorted by damage");
+  const finalBoard = (host.msgs.filter((m) => m.t === "game" && m.phase === "SUMMARY").pop() || {}).board || [];
+  const finalSorted = finalBoard.length === 11 && finalBoard.every((r, i) => i === 0 || finalBoard[i - 1].score >= r.score);
+  // monsters can fall in one question (no leaderboard screen then); the final ranking is always checked
+  ok((sawBoard ? boardOk : true) && finalSorted, "leaderboard is sorted by damage" + (sawBoard ? "" : " (final ranking; no mid-game board this run)"));
   ok(reconnectOk, "a student who drops mid-question gets the same open question back");
   ok(qSeen === 8 || stagesSeen.has("dragon"), "the game runs through to the dragon (" + qSeen + " questions, " + [...stagesSeen].join(" > ") + ")");
   ok(phase === "SUMMARY", "game reaches the class summary");
@@ -287,6 +293,81 @@ async function gameTest() {
   host.send({ t: "host:lobby" });
   const lob = await host.wait((m) => m.t === "lobby" && m.phase === "LOBBY");
   ok(lob.players.length === 11, "play again: everyone is back in the lobby");
+  host.send({ t: "host:close" });
+}
+
+// Tactics (milestone 3) with 4 students and no bots, so every outcome is predictable:
+// class shield at 75%, hearts lost below 70%, cards, the priest's heal, the card reward.
+async function tacticsTest() {
+  console.log("Tactics");
+  const { DH } = require("./shared");
+  const keyPlace = (qid) => {
+    const q = DH.QUESTIONS.find((x) => x.id === qid);
+    const mk = (list) => list.reduce((o, e) => { const a = Array.isArray(e[1]) ? e[1][0] : e[1]; o[e[0]] = o[e[0]] === undefined ? a : [].concat(o[e[0]], a); return o; }, {});
+    return Array.isArray(q.ex) ? { all: mk(q.ex) } : Object.keys(q.ex).reduce((o, v) => { o[v] = mk(q.ex[v]); return o; }, {});
+  };
+  const host = client(); await host.ready;
+  host.send({ t: "host:create", settings: { cls: "tac", length: "short", pace: "untimed", opts: { cards: true } } });
+  const room = await host.wait((m) => m.t === "room");
+  const jobs = ["warrior", "archer", "priest", "mage"];
+  const kids = jobs.map(() => client());
+  await Promise.all(kids.map((k) => k.ready));
+  kids.forEach((k) => k.send({ t: "join", code: room.code }));
+  await Promise.all(kids.map((k) => k.wait((m) => m.t === "joined")));
+  kids.forEach((k, i) => k.send({ t: "char", name: "T" + i, job: jobs[i], look: LOOK }));
+  await host.wait((m) => m.t === "lobby" && m.players.length === 4);
+  host.send({ t: "host:start" });
+  const intro = await kids[0].wait((m) => m.t === "game" && m.phase === "INTRO");
+  ok(intro.tac && intro.tac.hearts === 3 && intro.tac.cards[0] === "double", "each student starts with 3 hearts and their job's card");
+  host.send({ t: "host:next" });            // -> encounter
+  await host.next((m) => m.t === "game" && m.phase === "ENCOUNTER");
+  host.send({ t: "host:next" });            // -> question 1
+  let q = await host.next((m) => m.t === "game" && m.phase === "QUESTION");
+  ok(q.intent && q.intent.id === "open", "the class sees the monster's intent (first question is always 'open')");
+
+  // priest plays heal; a second card in the same question is refused
+  kids[2].send({ t: "card", qn: q.qNum, idx: 0 });
+  let pv = await kids[2].next((m) => m.t === "game" && m.tac && m.tac.armed);
+  ok(pv.tac.armed === "heal" && pv.tac.cards.length === 0, "a student can play a card from their hand");
+  // q1: 3 right, 1 wrong = 75% -> class shield protects the wrong one
+  kids.forEach((k, i) => k.send({ t: "answer", qn: q.qNum, place: i === 3 ? { all: {} } : keyPlace(q.q.id) }));
+  const r1 = await host.wait((m) => m.t === "game" && m.phase === "REVEAL" && m.qNum === q.qNum);
+  ok(r1.reveal.tactics.shield === true && Math.round(r1.reveal.tactics.shieldPct * 100) === 75, "75% right raises the class shield");
+  ok(r1.reveal.tactics.cards.heal === 1, "teacher sees which cards were played");
+  const me3 = await kids[3].wait((m) => m.t === "game" && m.phase === "REVEAL");
+  ok(me3.tac.hearts === 3 && me3.tac.last.protectedBy === "class", "the class shield saves the student who got it wrong");
+
+  // battle; slime (1 question, HP 260) should fall -> card reward
+  host.send({ t: "host:next" });
+  await host.next((m) => m.t === "game" && m.phase === "BATTLE");
+  host.send({ t: "host:next" });
+  const after = await host.next((m) => m.t === "game" && m.phase !== "BATTLE");
+  if (after.phase === "MON_DEFEAT") {
+    const d = await kids[0].wait((m) => m.t === "game" && m.phase === "MON_DEFEAT" && m.draft);
+    ok(d.draft.length === 3 && d.draft.some((c) => DH.CARDS[c].kind === "study"), "students get 3 reward cards, always one study card");
+    const dm = await kids[3].wait((m) => m.t === "game" && m.phase === "MON_DEFEAT" && m.draft);
+    ok(dm.draft.length === 4, "the mage chooses from 4");
+    kids[0].send({ t: "draft", cid: d.draft[0] });
+    const got = await kids[0].next((m) => m.t === "game" && m.draftPicked);
+    ok(got.tac.cards.indexOf(d.draft[0]) >= 0, "the chosen card goes into the hand");
+    const prog = await host.wait((m) => m.t === "game" && m.phase === "MON_DEFEAT" && m.drafts && m.drafts.picked === 1);
+    ok(prog.drafts.total === 4, "teacher sees how many have chosen");
+    host.send({ t: "host:next" });                         // others get a random card
+    await host.next((m) => m.t === "game" && m.phase === "ENCOUNTER");
+  } else {
+    ok(false, "slime should fall to 3 right answers (got " + after.phase + ")");
+  }
+
+  // q2: 2 right, 2 wrong = 50% -> no shield, the wrong ones lose hearts
+  host.send({ t: "host:next" });
+  q = await host.next((m) => m.t === "game" && m.phase === "QUESTION");
+  kids.forEach((k, i) => k.send({ t: "answer", qn: q.qNum, place: i >= 2 ? { all: {} } : keyPlace(q.q.id) }));
+  const r2 = await host.wait((m) => m.t === "game" && m.phase === "REVEAL" && m.qNum === q.qNum);
+  ok(r2.reveal.tactics.shield === false && r2.reveal.tactics.heartsLost === 2, "below 70% there is no shield and the wrong answers cost hearts");
+  const lost = await kids[3].wait((m) => m.t === "game" && m.phase === "REVEAL" && m.qNum === q.qNum);
+  ok(lost.tac.hearts === 3 - lost.tac.last.lost && lost.tac.last.lost >= 1, "a student sees the hearts they lost (" + lost.tac.last.lost + ", intent " + r2.intent.id + ")");
+  const gauge = await kids[0].wait((m) => m.t === "game" && m.phase === "REVEAL" && m.qNum === q.qNum);
+  ok(gauge.tac.ult === 2, "the ultimate gauge fills by 1 per full-marks answer");
   host.send({ t: "host:close" });
 }
 
