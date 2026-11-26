@@ -88,3 +88,9 @@
 .pg-rankrow > span { color: var(--mute); font-weight: 700; font-size: 0.85rem; }
 .pg-rankrow .pg-bigrank { font-size: 2rem; }
 .pg .draft-box { margin-top: 10px; }
+
+/* self-paced mode: the student's own "next" button */
+.pg-go { width: 100%; margin-top: 10px; font-size: 1.05rem; }
+.pg-stagechip { font-size: 0.74rem; font-weight: 800; color: #7dd3fc; padding: 1px 8px; border-radius: 999px; background: #0b1220; border: 1px solid #335a80; white-space: nowrap; }
+.pg-stats-sm { margin: 8px 0 0; }
+.pg-stats-sm span { font-size: 1rem; }

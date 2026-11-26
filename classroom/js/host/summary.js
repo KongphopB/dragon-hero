@@ -14,7 +14,7 @@
       var csvUrl = "/api/room/" + c.room.code + "/results.csv?key=" + encodeURIComponent(c.room.hostToken);
       L.innerHTML =
         '<div class="hs-card">' +
-          '<div class="hs-title">📊 สรุปผลทั้งห้อง <span>' + (v.result === "win" ? "🎉 ปราบมังกรสำเร็จ" : "🐉 ยังไม่ชนะมังกร") + ' · ' + v.board.length + ' คน · ' + s.questions.length + ' ข้อ</span></div>' +
+          '<div class="hs-title">📊 สรุปผลทั้งห้อง <span>' + (v.self ? "🏃 ต่างคนต่างทำ · ปราบมังกรได้ " + v.selfWins + "/" + v.selfTotal + " คน" : (v.result === "win" ? "🎉 ปราบมังกรสำเร็จ" : "🐉 ยังไม่ชนะมังกร")) + ' · ' + v.board.length + ' คน · ' + s.questions.length + ' ข้อ</span></div>' +
           '<div class="hs-grid">' +
             '<section><h3>🧠 จุดที่ห้องพลาดบ่อย</h3>' +
               (s.mistakes.length ? s.mistakes.map(function (m, i) {

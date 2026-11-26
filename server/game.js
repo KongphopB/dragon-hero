@@ -3,6 +3,7 @@
 //   INTRO -> ENCOUNTER -> QUESTION -> REVEAL -> BATTLE -> BOARD -> QUESTION ...
 //                                                       \-> MON_DEFEAT / MON_ESCAPE -> ENCOUNTER (next stage)
 //   boss stage ends in VICTORY / DEFEAT -> FINAL (podium) -> SUMMARY (class mistakes, CSV)
+// Room setting mode "self" runs selfpaced.js instead (each student plays their own whole run at their own pace).
 // With tactics on (room setting "cards"), tactics.js adds monster intents, cards, hearts,
 // ultimates, the class shield and the card reward after each monster.
 //
@@ -11,6 +12,7 @@
 "use strict";
 const { DH } = require("./shared");
 const T = require("./tactics");
+const S = require("./selfpaced");
 
 const LENGTHS = { short: [1, 1, 1, 2, 3], medium: null, long: [3, 3, 3, 4, 5] };
 const PACE = { normal: 1, slow: 1.5, untimed: 0 };
@@ -134,6 +136,7 @@ function setPhase(room, phase, autoMs, next) {
 
 function start(room) {
   room.game = newGame(room);
+  if (room.settings.mode === "self") return S.start(room);
   initStage(room);
   setPhase(room, "INTRO", INTRO_MS, () => encounter(room));
 }
@@ -174,6 +177,7 @@ function startQuestion(room) {
 
 function answer(room, p, msg) {
   const g = room.game;
+  if (g && g.self) return S.answer(room, p, msg);
   if (room.phase !== "QUESTION" || !g || msg.qn !== g.qNum || g.answers.has(p.id)) return;
   const place = cleanPlace(msg.place);
   const t = now();
@@ -356,6 +360,7 @@ function rank(room) {
 // Teacher's "next" button: what it does depends on where we are.
 function next(room) {
   const ph = room.phase;
+  if (ph === "SELF") return S.endNow(room);
   if (ph === "INTRO") return encounter(room);
   if (ph === "ENCOUNTER" || ph === "BOARD") return startQuestion(room);
   if (ph === "QUESTION") return reveal(room);
@@ -368,6 +373,7 @@ function next(room) {
 
 function stop(room) {
   clearTimers(room);
+  room.players.forEach((p) => { if (p.run) { clearTimeout(p.run.timer); p.run = null; } });
   room.game = null;
 }
 
@@ -415,6 +421,16 @@ function botsPickDrafts(room) {
   });
 }
 
+// The phone's own "next" button (self-paced mode only; in the class game the teacher drives).
+function playerNext(room, p) {
+  if (room.game && room.game.self) S.next(room, p);
+}
+
+// A student left: in self-paced mode they no longer hold up the ending.
+function playerLeft(room) {
+  if (room.game && room.game.self && room.phase === "SELF") S.checkAllDone(room);
+}
+
 // Phone actions with tactics: play a card, fire the ultimate, take a reward card.
 function act(room, p, msg) {
   const g = room.game;
@@ -422,7 +438,7 @@ function act(room, p, msg) {
   let changed = false;
   if (msg.t === "card") changed = T.useCard(room, p, msg);
   else if (msg.t === "ult") changed = T.useUltimate(room, p, msg);
-  else if (msg.t === "draft") { changed = T.pickDraft(room, p, String(msg.cid)); if (changed) room.pushDraft(); }
+  else if (msg.t === "draft") { changed = T.pickDraft(room, p, String(msg.cid)); if (changed && !g.self) room.pushDraft(); }
   if (changed && p.sock) p.sock.sendJson(playerView(room, p));
 }
 
@@ -445,6 +461,7 @@ function leaderboard(room, n) {
 
 // Teacher screen: everything about the class, plus the answer key once it is time to show it.
 function hostView(room) {
+  if (room.phase === "SELF") return S.hostView(room);
   const g = room.game;
   const ph = room.phase;
   const v = {
@@ -477,6 +494,7 @@ function hostView(room) {
   if (ph === "BOARD" || ph === "BATTLE") v.board = leaderboard(room, 10);
   if (ph === "FINAL" || ph === "SUMMARY") {
     v.result = g.result;
+    if (g.self) { v.self = true; v.selfWins = g.selfWins; v.selfTotal = g.selfTotal; }
     v.board = leaderboard(room, 60);
   }
   if (ph === "DEFEAT") v.defeatFate = g.defeatFate;
@@ -498,6 +516,7 @@ function summary(room) {
 
 // One student's phone.
 function playerView(room, p) {
+  if (room.phase === "SELF" && p.run) return S.playerView(room, p);
   const g = room.game;
   const ph = room.phase;
   const v = {
@@ -537,6 +556,7 @@ function playerView(room, p) {
   }
   if (ph === "FINAL" || ph === "SUMMARY" || ph === "VICTORY" || ph === "DEFEAT") {
     v.result = g.result;
+    if (g.self && p.run) { v.self = true; v.myResult = p.run.result; }
     v.me = {
       answered: p.answered, correct: p.correct, acc: p.answered ? p.accSum / p.answered : 0,
       mistakes: Object.keys(p.mistakes || {}).sort((a, b) => p.mistakes[b] - p.mistakes[a]).slice(0, 3).map((c) => ({
@@ -553,11 +573,14 @@ function csv(room) {
   const q = (s) => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
   const head = ["อันดับ", "ชื่อ", "อาชีพ", "ดาเมจรวม", "ถูกเต็ม", "ตอบ", "จากทั้งหมด", "ความแม่นยำเฉลี่ย (%)", "จุดที่พลาดบ่อย"];
   const rows = list.map((p) => [
-    p.rank, p.name, (DH.JOBS[p.job] || {}).name || p.job, p.score, p.correct, p.answered, room.game ? room.game.qNum : 0,
+    p.rank, p.name, (DH.JOBS[p.job] || {}).name || p.job, p.score, p.correct, p.answered, p.run ? p.run.qNum : (room.game ? room.game.qNum : 0),
     p.answered ? Math.round(100 * p.accSum / p.answered) : 0,
     Object.keys(p.mistakes || {}).sort((a, b) => p.mistakes[b] - p.mistakes[a]).slice(0, 3).map((c) => ((DH.MISTAKE_META[c] || {}).label || c) + " ×" + p.mistakes[c]).join("; ")
   ]);
   return "﻿" + [head].concat(rows).map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
 }
 
-module.exports = { start, next, answer, act, stop, hostView, playerView, csv, publicQuestion, cleanPlace, LENGTHS };
+module.exports = {
+  // used by selfpaced.js
+  packQuestions, cleanPlace, PACE, scoreAnswer, bossPhase, rank, standings, setPhase, monsterView, botPlace,
+  start, next, answer, act, playerNext, playerLeft, stop, hostView, playerView, csv, publicQuestion, LENGTHS };

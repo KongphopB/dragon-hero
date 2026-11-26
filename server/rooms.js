@@ -169,6 +169,7 @@ class Room {
 
   leave(p) {
     p.sock = null;
+    if (this.game) game.playerLeft(this);
     // Someone who never finished their character just drops out; others wait to reconnect.
     if (!p.ready) this.players.delete(p.id);
     this.push();
@@ -301,6 +302,7 @@ function handle(sock, text) {
   if (p.sock !== sock || !room.players.has(p.id)) return;
   if (m.t === "answer" && room.game && p.ready) game.answer(room, p, m);
   else if ((m.t === "card" || m.t === "ult" || m.t === "draft") && room.game) game.act(room, p, m);
+  else if (m.t === "next" && room.game) game.playerNext(room, p);
   else if (m.t === "char" && room.phase === "LOBBY") room.setChar(p, m);
   else if (m.t === "unready" && room.phase === "LOBBY") { p.ready = false; sock.sendJson(room.playerView(p)); room.push(); }
 }

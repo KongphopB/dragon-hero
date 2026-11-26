@@ -24,7 +24,7 @@
     return '<div class="intent-bar ' + (it.good ? "is-good" : "is-bad") + '">' +
       '<span class="intent-ico">' + it.icon + '</span>' +
       '<span><b>มอนเตรียม: ' + esc(it.name) + '</b><br>' + esc(it.desc) + '</span></div>' +
-      '<div class="pt-shield">🛡️ ถ้าทั้งห้องตอบถูกอย่างน้อยครึ่ง ' + Math.round(t.shieldNeed * 100) + '% ขึ้นไป มอนทำอะไรใครไม่ได้</div>';
+      (t.shieldNeed ? '<div class="pt-shield">🛡️ ถ้าทั้งห้องตอบถูกอย่างน้อยครึ่ง ' + Math.round(t.shieldNeed * 100) + '% ขึ้นไป มอนทำอะไรใครไม่ได้</div>' : '');
   }
 
   function ultBar(t, job) {

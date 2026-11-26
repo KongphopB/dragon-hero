@@ -7,6 +7,8 @@
 //     counter-attack fails for everyone this turn: nobody loses hearts, no stealing, no healing.
 //   - After a monster falls each student picks 1 of 3 cards (mage: 4) on their phone.
 //   - The server owns the clock, so "freeze" gives you the full speed bonus instead of stopping time.
+//   - Self-paced mode (selfpaced.js) uses the same cards per student with resolveSolo(): no class
+//     shield there, and the monster's move is judged on that student's own answer, as in single-player.
 "use strict";
 const { DH } = require("./shared");
 
@@ -45,6 +47,17 @@ function newStage(room) {
   room.players.forEach((p) => { p.knightUsed = false; });
 }
 
+// The question this student may act on right now, whichever mode the room is in.
+function turnOf(room, p) {
+  const g = room.game;
+  if (!g) return null;
+  if (g.self) {
+    const r = p.run;
+    return r && r.phase === "QUESTION" ? { q: r.q, qn: r.qNum, answered: !!r.answer, endsAt: r.endsAt, timeTotal: r.timeTotal } : null;
+  }
+  return room.phase === "QUESTION" ? { q: g.q, qn: g.qNum, answered: g.answers.has(p.id), endsAt: g.endsAt, timeTotal: g.timeTotal } : null;
+}
+
 // ---------------------------------------------------------------- intents
 function rollIntent(g, room) {
   if (g.stageIdx === 0 && g.qNum === 1) return "open";          // a friendly first question
@@ -65,6 +78,8 @@ function rollIntent(g, room) {
 function intentInfo(g) {
   const it = DH.INTENTS[g.intent];
   if (!it) return null;
+  // a student on their own: the single-player wording
+  if (g.solo) return { id: g.intent, icon: it.icon, name: it.name, desc: it.desc.replace("{X}", String(g.monster.baseDmg)), good: !!it.good, counter: it.counter };
   const desc = {
     open: "ตานี้ดาเมจของทุกคน ×1.5",
     heavy: "ใครตอบผิดเกินครึ่ง เสีย 2 หัวใจ",
@@ -81,8 +96,8 @@ function chargeTarget(g) { return Math.round(g.monster.baseDmg * g.n * 0.5); }
 
 // ---------------------------------------------------------------- playing cards / ultimate
 function useCard(room, p, msg) {
-  const g = room.game;
-  if (room.phase !== "QUESTION" || msg.qn !== g.qNum || g.answers.has(p.id) || p.armed) return false;
+  const t = turnOf(room, p);
+  if (!t || msg.qn !== t.qn || t.answered || p.armed) return false;
   const idx = Math.floor(Number(msg.idx));
   const cid = p.cards[idx];
   if (!cid || (msg.cid && msg.cid !== cid)) return false;
@@ -95,11 +110,11 @@ function useCard(room, p, msg) {
   } else if (cid === "freeze") {
     p.hint = { kind: "msg", text: "❄️ หยุดเวลา: ข้อนี้คุณได้โบนัสความเร็วเต็มไม่ว่าจะตอบช้าแค่ไหน" };
   } else if (cid === "xray") {
-    p.hint = xrayHint(g.q);
+    p.hint = xrayHint(t.q);
   } else if (cid === "cut") {
     const keys = {};
-    if (Array.isArray(g.q.ex)) keys.all = g.q.ex.map((e) => e[0]);
-    else Object.keys(g.q.ex).forEach((v) => { keys[v] = g.q.ex[v].map((e) => e[0]); });
+    if (Array.isArray(t.q.ex)) keys.all = t.q.ex.map((e) => e[0]);
+    else Object.keys(t.q.ex).forEach((v) => { keys[v] = t.q.ex[v].map((e) => e[0]); });
     p.hint = { kind: "cut", keys };
   } else if (cid === "protractor") {
     p.hint = { kind: "protractor" };
@@ -118,8 +133,8 @@ function xrayHint(q) {
 }
 
 function useUltimate(room, p, msg) {
-  const g = room.game;
-  if (room.phase !== "QUESTION" || msg.qn !== g.qNum || g.answers.has(p.id) || p.ultArmed || p.ult < DH.ULT_MAX) return false;
+  const t = turnOf(room, p);
+  if (!t || msg.qn !== t.qn || t.answered || p.ultArmed || p.ult < DH.ULT_MAX) return false;
   p.ultArmed = true;
   p.ult = 0;
   if (p.job === "priest") p.hearts = MAX_HEARTS;
@@ -128,9 +143,10 @@ function useUltimate(room, p, msg) {
 }
 
 // Second chance: a wrong first try is sent back with what is still wrong (once, if time remains).
-function wantsRetry(g, p, res) {
+// turn: anything with timeTotal / endsAt (the class game, or one student's run)
+function wantsRetry(turn, p, res) {
   if (p.armed !== "second_chance" || p.scUsed || res.acc >= 0.999) return false;
-  if (g.timeTotal && g.endsAt - Date.now() < 3000) return false;
+  if (turn.timeTotal && turn.endsAt - Date.now() < 3000) return false;
   p.scUsed = true;
   p.retry = res.wrongItems.slice(0, 6);
   return true;
@@ -206,6 +222,7 @@ function resolveRound(room, ready) {
 }
 
 // One student's damage this question (same maths as single-player, minus the timer cards).
+// g: anything with .monster and .intent (the class game, or one student's run)
 function damage(g, p, a) {
   const m = g.monster;
   const base = m.baseDmg;
@@ -240,6 +257,39 @@ function damage(g, p, a) {
   return dmg;
 }
 
+// Self-paced mode: one student's answer, judged like single-player (no class shield).
+// run.healBase: the HP the monster's 15% heal is taken from (a share of the shared dragon).
+function resolveSolo(p, run, a) {
+  const m = run.monster, intent = run.intent;
+  p.tac = { card: p.armed, ult: p.ultArmed ? p.job : null, exhausted: p.hearts <= 0 };
+  const acc = a ? a.res.acc : 0;
+  const full = acc >= 0.999, half = acc >= 0.5;
+  let dmg = a ? damage(run, p, a) : 0;
+  const meteor = p.tac.ult === "mage" ? m.baseDmg * 2 : 0;
+  let protectedBy = null, lost = 0;
+  if (!half) {
+    if (p.armed === "shield") protectedBy = "shield";
+    else if (p.fortress > 0) { p.fortress--; protectedBy = "fortress"; }
+    else if (p.job === "knight" && !p.knightUsed) { p.knightUsed = true; protectedBy = "knight"; }
+    if (!protectedBy) lost = intent === "heavy" ? 2 : 1;
+  }
+  if (dmg < 0 && protectedBy) dmg = 0;
+  p.hearts = Math.max(0, p.hearts - lost);
+  p.heartsLost += lost;
+  if (full) p.streak++;
+  else if (!protectedBy) p.streak = 0;
+  if (intent === "steal" && !half && !protectedBy && p.cards.length) p.tac.stolen = p.cards.splice(Math.floor(Math.random() * p.cards.length), 1)[0];
+  if (!p.tac.ult) p.ult = Math.min(DH.ULT_MAX, p.ult + (full ? 1 : (half ? 0.5 : 0)));
+  let effect = null;
+  const heal = Math.round((run.healBase || m.maxHp) * HEAL_RATE);
+  if (intent === "charge" && dmg + meteor < m.baseDmg) effect = { type: "heal", amount: heal, why: "ชาร์จพลังสำเร็จ" };
+  if (intent === "regen" && !full) effect = { type: "heal", amount: heal, why: "ฟื้นตัว" };
+  if (intent === "heavy" && !half && protectedBy) effect = { type: "blocked", why: "กันท่าโจมตีหนักไว้ได้" };
+  if (intent === "steal" && !half && protectedBy) effect = { type: "blocked", why: "กันการขโมยไว้ได้" };
+  Object.assign(p.tac, { lost, protectedBy, nowExhausted: p.hearts <= 0, dmg: dmg + meteor });
+  return { dmg, meteor, effect };
+}
+
 // ---------------------------------------------------------------- card reward after a monster falls
 function drawDraft(n) {
   const pool = DH.ALL_CARDS.slice();
@@ -248,6 +298,12 @@ function drawDraft(n) {
   while (out.length < n) { const c = pick(pool); if (out.indexOf(c) < 0) out.push(c); }
   for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
   return out;
+}
+
+// One student's reward (self-paced mode: each finds their own chest).
+function offerDraft(p) {
+  p.draft = drawDraft(p.job === "mage" ? 4 : 3);
+  p.draftPicked = null;
 }
 
 function offerDrafts(room) {
@@ -259,7 +315,8 @@ function offerDrafts(room) {
 }
 
 function pickDraft(room, p, cid) {
-  if (room.phase !== "MON_DEFEAT" || !p.draft || p.draft.indexOf(cid) < 0) return false;
+  const atChest = room.game && room.game.self ? p.run && p.run.phase === "MON_DEFEAT" : room.phase === "MON_DEFEAT";
+  if (!atChest || !p.draft || p.draft.indexOf(cid) < 0) return false;
   if (p.cards.length >= DH.HAND_MAX) p.cards.shift();
   p.cards.push(cid);
   p.draftPicked = cid;
@@ -281,25 +338,26 @@ function draftProgress(room) {
 // Bots play cards now and then, and always pick a reward.
 function botTurn(room, p) {
   const g = room.game;
-  if (p.ult >= DH.ULT_MAX && Math.random() < 0.6) useUltimate(room, p, { qn: g.qNum });
+  const ctx = g.self ? p.run : g;
+  if (p.ult >= DH.ULT_MAX && Math.random() < 0.6) useUltimate(room, p, { qn: ctx.qNum });
   if (p.cards.length && Math.random() < 0.35) {
-    const counters = (DH.INTENTS[g.intent] || {}).counter || [];
+    const counters = (DH.INTENTS[ctx.intent] || {}).counter || [];
     const i = Math.max(0, p.cards.findIndex((c) => counters.indexOf(c) >= 0));
-    if (p.cards[i] !== "second_chance") useCard(room, p, { qn: g.qNum, idx: i });
+    if (p.cards[i] !== "second_chance") useCard(room, p, { qn: ctx.qNum, idx: i });
   }
 }
 
 // ---------------------------------------------------------------- views
 function playerTactics(room, p) {
-  const g = room.game;
+  const g = room.game && room.game.self ? p.run : room.game;
   return {
     hearts: p.hearts, maxHearts: MAX_HEARTS, cards: p.cards, armed: p.armed, ult: p.ult, ultMax: DH.ULT_MAX,
     ultArmed: p.ultArmed, fortress: p.fortress, hint: p.hint, retry: p.retry,
-    intent: g && g.intent ? intentInfo(g) : null, shieldNeed: SHIELD_RATE
+    intent: g && g.intent ? intentInfo(g) : null, shieldNeed: g && g.solo ? null : SHIELD_RATE   // no class shield when each plays alone
   };
 }
 
 module.exports = {
-  setupPlayer, resetTurn, newStage, rollIntent, intentInfo, useCard, useUltimate, wantsRetry, resolveRound,
-  offerDrafts, pickDraft, closeDrafts, draftProgress, botTurn, playerTactics, SHIELD_RATE, MAX_HEARTS
+  setupPlayer, resetTurn, newStage, rollIntent, intentInfo, useCard, useUltimate, wantsRetry, resolveRound, resolveSolo,
+  offerDraft, offerDrafts, pickDraft, closeDrafts, draftProgress, botTurn, playerTactics, SHIELD_RATE, MAX_HEARTS
 };

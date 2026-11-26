@@ -44,7 +44,9 @@
       var places = [4, 2, 1, 3, 5];
       L.innerHTML =
         '<div class="hf-wrap">' +
-          '<div class="hf-title">' + (v.result === "win" ? '🎉 ปราบมังกรสำเร็จ! ฮีโร่ของห้องนี้คือ…' : '🐉 มังกรยังไม่ล้ม แต่นี่คือนักสู้ที่เก่งที่สุดของห้อง') + '</div>' +
+          '<div class="hf-title">' + (v.self
+            ? '🏁 จบการผจญภัย! ปราบมังกรได้ ' + v.selfWins + '/' + v.selfTotal + ' คน · นักสู้ที่ทำดาเมจสูงสุดคือ…'
+            : (v.result === "win" ? '🎉 ปราบมังกรสำเร็จ! ฮีโร่ของห้องนี้คือ…' : '🐉 มังกรยังไม่ล้ม แต่นี่คือนักสู้ที่เก่งที่สุดของห้อง')) + '</div>' +
           '<div class="hf-podium">' + podium.map(function (r, i) {
             if (!r) return '<div class="hf-slot is-empty"></div>';
             var place = places[i];

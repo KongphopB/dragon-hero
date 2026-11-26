@@ -137,6 +137,7 @@
   function bar(v) {
     var m = v.monster;
     $("hgStage").innerHTML = m ? '<small>ด่าน ' + (v.stageIdx + 1) + '/' + v.stages + '</small><b>' + esc(m.name.split(" (")[0]) + '</b>' : "";
+    if (!m) $("hgHp").innerHTML = "";     // self-paced endings have no monster: clear what the ranking put there
     if (m) {
       var pct = Math.max(0, Math.min(100, 100 * m.hp / Math.max(1, m.maxHp)));
       $("hgHp").innerHTML = '<div class="hg-hp-track"><i style="width:' + pct + '%"></i></div>' +

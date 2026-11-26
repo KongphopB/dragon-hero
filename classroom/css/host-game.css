@@ -235,3 +235,11 @@
 .hg-pop.is-block { font-size: 13px; color: #93c5fd; }
 .hg-pop.is-heal { font-size: 24px; color: #67e8f9; }
 .hg-fx .ult-flash, .hg-fx .ult-banner, .hg-fx .meteor-fx { position: absolute; }
+
+/* ---------- self-paced mode: live damage ranking (milestone 4) ---------- */
+.hb-card.hs-live { width: min(900px, 96vw); }
+.hs-live .hb-list { max-height: calc(100vh - 190px); overflow: auto; }
+.hs-live .hb-row { animation: none; }
+.hb-row.is-off { opacity: 0.5; }
+.hs-done { font-size: 0.8rem; }
+.hg-hp-track.is-done i { background: linear-gradient(90deg, #22c55e, #86efac); }

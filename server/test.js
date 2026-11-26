@@ -169,9 +169,12 @@ async function main() {
 
     await gameTest();
     await tacticsTest();
+    await selfPacedTest();
   } catch (e) {
     failures++;
     console.log("  ✗ " + e.message);
+    // show the server's own error, if it threw one
+    if (out.includes("Error")) console.log("  server output:\n" + out.split("\n").filter((l) => /Error|at /.test(l)).slice(0, 12).join("\n"));
   } finally {
     proc.kill();
   }
@@ -369,6 +372,87 @@ async function tacticsTest() {
   const gauge = await kids[0].wait((m) => m.t === "game" && m.phase === "REVEAL" && m.qNum === q.qNum);
   ok(gauge.tac.ult === 2, "the ultimate gauge fills by 1 per full-marks answer");
   host.send({ t: "host:close" });
+}
+
+// Self-paced mode (milestone 4): each student plays their own whole run at their own speed.
+// Finishing early ends nothing; the game ends when everyone is done or the teacher ends it.
+async function selfPacedTest() {
+  console.log("Self-paced");
+  const { DH } = require("./shared");
+  const keyPlace = (qid) => {
+    const q = DH.QUESTIONS.find((x) => x.id === qid);
+    const mk = (list) => list.reduce((o, e) => { const a = Array.isArray(e[1]) ? e[1][0] : e[1]; o[e[0]] = o[e[0]] === undefined ? a : [].concat(o[e[0]], a); return o; }, {});
+    return Array.isArray(q.ex) ? { all: mk(q.ex) } : Object.keys(q.ex).reduce((o, v) => { o[v] = mk(q.ex[v]); return o; }, {});
+  };
+  const host = client(); await host.ready;
+  host.send({ t: "host:create", settings: { cls: "self", mode: "self", length: "short", pace: "untimed", opts: { cards: true } } });
+  const room = await host.wait((m) => m.t === "room");
+  const kids = [client(), client()];
+  await Promise.all(kids.map((k) => k.ready));
+  kids.forEach((k) => k.send({ t: "join", code: room.code }));
+  await Promise.all(kids.map((k) => k.wait((m) => m.t === "joined")));
+  kids.forEach((k, i) => k.send({ t: "char", name: ["เร็ว", "ช้า"][i], job: "warrior", look: LOOK }));
+  await host.wait((m) => m.t === "lobby" && m.players.length === 2);
+  host.send({ t: "host:bots", n: 4 });
+  await host.next((m) => m.t === "lobby" && m.players.length === 6);
+  host.send({ t: "host:start" });
+
+  const hv = await host.wait((m) => m.t === "game" && m.phase === "SELF");
+  ok(hv.self && hv.board.length === 6 && !hv.monster && hv.done === 0, "teacher sees only the damage ranking of all 6");
+  let v = await kids[0].wait((m) => m.t === "game" && m.self && m.phase === "ENCOUNTER");
+  ok(v.monster.id === "slime" && v.monster.maxHp === 65, "each student meets their own slime first");
+
+  // the fast student plays their whole run, own dragon included
+  const fast = kids[0];
+  let guard = 0, lastPhase = "ENCOUNTER", sawOwnQuestion = false, dragonHp = 0;
+  while (guard++ < 80) {
+    await sleep(150);        // a person, not a flood (the server rate-limits each phone)
+    if (lastPhase === "QUESTION") {
+      sawOwnQuestion = sawOwnQuestion || !v.q.ex;
+      fast.send({ t: "answer", qn: v.qNum, place: keyPlace(v.q.id) });
+    } else if (lastPhase === "MON_DEFEAT" && v.draft) {
+      fast.send({ t: "draft", cid: v.draft[0] });
+      await fast.next((m) => m.t === "game" && m.draftPicked);
+      fast.send({ t: "next" });
+    } else if (lastPhase === "DONE") break;
+    else fast.send({ t: "next" });
+    v = await fast.next((m) => m.t === "game" && m.self && (m.phase !== lastPhase || (m.phase === "QUESTION" && m.qNum !== v.qNum)), 8000);
+    lastPhase = v.phase;
+    if (v.monster && v.monster.id === "dragon") dragonHp = v.monster.maxHp;
+  }
+  ok(sawOwnQuestion, "questions on the phone come without the answer key");
+  ok(dragonHp > 0 && dragonHp < 1000, "each student fights their own dragon (HP " + dragonHp + ")");
+  ok(lastPhase === "DONE" && v.result === "win", "a student who beats their dragon is done (" + lastPhase + ", " + v.result + ")");
+  await sleep(600);
+  const still = host.msgs.filter((m) => m.t === "game").pop();
+  ok(still.phase === "SELF", "one student finishing does not end the game");
+  const hv2 = await host.wait((m) => m.t === "game" && m.phase === "SELF" && m.board.some((x) => x.name === "เร็ว" && x.done));
+  ok(hv2.done >= 1 && hv2.board.find((x) => x.name === "เร็ว").won, "teacher's ranking marks who has finished");
+  const slow = await kids[1].wait((m) => m.t === "game" && m.self);
+  ok(slow.phase === "ENCOUNTER" && slow.monster.id === "slime", "a slow student is still at their own slime: nobody waits for anyone");
+
+  // teacher ends the game: straight to the podium
+  host.send({ t: "host:next" });
+  const fin = await host.wait((m) => m.t === "game" && m.phase === "FINAL");
+  ok(fin.self && fin.selfTotal === 6 && fin.selfWins >= 1, "teacher can end it; the podium counts who beat their dragon (" + fin.selfWins + "/" + fin.selfTotal + ")");
+  const pf = await kids[0].wait((m) => m.t === "game" && m.phase === "FINAL");
+  ok(pf.myResult === "win", "a phone shows its own result at the end");
+  host.send({ t: "host:next" });
+  const sum = await host.wait((m) => m.t === "game" && m.phase === "SUMMARY");
+  ok(sum.summary.questions.length >= 5 && sum.board.length === 6, "summary lists the questions the class met and ranks everyone");
+  host.send({ t: "host:close" });
+
+  // a class of quick bots: the game ends by itself once every one of them is done
+  const h2 = client(); await h2.ready;
+  h2.send({ t: "host:create", settings: { cls: "self2", mode: "self", length: "short", pace: "untimed", opts: { cards: true } } });
+  await h2.wait((m) => m.t === "room");
+  h2.send({ t: "host:bots", n: 3 });
+  await h2.wait((m) => m.t === "lobby" && m.players.length === 3);
+  h2.send({ t: "host:botspeed", speed: 0.05 });
+  h2.send({ t: "host:start" });
+  const auto = await h2.wait((m) => m.t === "game" && m.phase === "FINAL", 30000).catch((e) => { const last = h2.msgs.filter((m) => m.t === "game").pop(); console.log("    last teacher view:", last && last.phase, JSON.stringify(last && last.board && last.board.map((b) => [b.name, b.score, b.done]))); throw e; });
+  ok(auto.selfTotal === 3, "when everyone is done the game moves to the podium on its own");
+  h2.send({ t: "host:close" });
 }
 
 main();
