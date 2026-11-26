@@ -26,8 +26,10 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 // ---------------------------------------------------------------- questions
-function packQuestions(packId) {
-  const p = (DH.PACKS || []).filter((x) => x.id === packId)[0] || (DH.PACKS || [])[0];
+// The room's questions: the teacher's own pack if they brought one, else a built-in pack.
+function packQuestions(room) {
+  if (room.customPack) return room.customPack.questions;
+  const p = (DH.PACKS || []).filter((x) => x.id === room.settings.pack)[0] || (DH.PACKS || [])[0];
   return p ? p.questions : DH.QUESTIONS;
 }
 
@@ -148,7 +150,7 @@ function encounter(room) {
 function startQuestion(room) {
   const g = room.game;
   const st = DH.STAGES[g.stageIdx];
-  const all = packQuestions(room.settings.pack);
+  const all = packQuestions(room);
   let pool = all.filter((q) => q.stage === st.stage);
   if (!pool.length) {
     // pack has nothing for this stage: take the nearest stage it does have

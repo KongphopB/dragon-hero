@@ -114,7 +114,7 @@
   }
 
   function panelHtml() {
-    var s = room.settings, P = DH.PACKS.filter(function (p) { return p.id === s.pack; })[0];
+    var s = room.settings, P = s.packName ? { name: s.packName } : DH.PACKS.filter(function (p) { return p.id === s.pack; })[0];
     var bots = kids.filter(function (k) { return k.bot; }).length;
     return '<div class="lb-panel-head"><b>⚙️ ห้อง ' + prettyCode(room.code) + '</b><button type="button" class="btn-sec" data-closepanel>✕</button></div>' +
       '<dl>' +

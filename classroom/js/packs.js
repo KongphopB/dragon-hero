@@ -1,5 +1,6 @@
 // Question packs offered when creating a room. The built-in packs are slices of the
-// single-player bank (js/data/questions.js) by topic; teacher-made packs come later (milestone 5).
+// single-player bank (js/data/questions.js) by topic. DH.allPacks() adds the teacher's own packs
+// (classroom/js/editor/store.js, kept in this browser) when that file is loaded.
 (function () {
   var DH = window.DH;
 
@@ -16,15 +17,24 @@
   ];
 
   function summarise(pack) {
-    var qs = DH.QUESTIONS.filter(function (q) { return pack.topics.indexOf(q.topic) >= 0; });
+    var qs = pack.questions || DH.QUESTIONS.filter(function (q) { return pack.topics.indexOf(q.topic) >= 0; });
     var lv = { "ง่าย": 0, "กลาง": 0, "ยาก": 0 };
     var tm = 0;
     qs.forEach(function (q) { lv[q.lv] = (lv[q.lv] || 0) + 1; tm += q.tm || 30; });
     return {
-      id: pack.id, name: pack.name, desc: pack.desc, recommended: !!pack.recommended, topics: pack.topics,
+      id: pack.id, name: pack.name, desc: pack.desc, recommended: !!pack.recommended, mine: !!pack.mine,
+      topics: pack.topics || qs.map(function (q) { return q.topic; }).filter(function (t, i, a) { return a.indexOf(t) === i; }),
       questions: qs, count: qs.length, levels: lv, avgTime: qs.length ? tm / qs.length : 30
     };
   }
 
   DH.PACKS = BUILT_IN.map(summarise);
+
+  // Built-in packs plus the teacher's own (non-empty) packs from this browser.
+  DH.allPacks = function () {
+    var mine = DH.PackStore ? DH.PackStore.list().map(function (p) {
+      return summarise({ id: p.id, name: p.name, desc: p.desc || "ชุดที่ครูแต่งเอง", mine: true, questions: DH.PackStore.resolve(p) });
+    }).filter(function (p) { return p.count > 0; }) : [];
+    return DH.PACKS.concat(mine);
+  };
 })();

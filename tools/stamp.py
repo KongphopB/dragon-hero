@@ -21,14 +21,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = ["index.html", "preview.html", "classroom/index.html", "classroom/host.html", "classroom/play.html"]
+PAGES = ["index.html", "preview.html", "classroom/index.html", "classroom/host.html", "classroom/play.html", "classroom/editor.html"]
 LINK = re.compile(r'((?:href|src)=")((?:\.\./)*(?:css|js)/[^"?]+)(\?v=[^"]*)?(")')
 # folder -> pages that must load every .js/.css inside it
 COVERAGE = {
     "js": ["index.html"],
     "css": ["index.html"],
     "classroom/js": ["classroom/index.html", "classroom/host.html", "classroom/play.html"],
-    "classroom/css": ["classroom/index.html", "classroom/host.html", "classroom/play.html"],
+    "classroom/css": ["classroom/index.html", "classroom/host.html", "classroom/play.html", "classroom/editor.html"],
+    "classroom/js/editor": ["classroom/editor.html"],
     "classroom/js/host": ["classroom/host.html"],
     "classroom/js/play": ["classroom/play.html"],
 }

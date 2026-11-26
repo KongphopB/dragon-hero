@@ -371,3 +371,10 @@
 @keyframes plDot { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
 .pl-tip { font-size: 0.8rem; color: var(--mute); }
 .pl-started .pl-who { margin-top: 6px; }
+
+/* teacher packs in room setup (milestone 5) */
+.su-mine { background: #fde68a; color: #422006; }
+.su-peek-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.su-edit { text-decoration: none; }
+.su-opt.su-new { border-style: dashed; align-items: center; justify-content: center; text-align: center; text-decoration: none; }
+.su-opt.su-new .su-plus { font-size: 1.8rem; line-height: 1; color: var(--gold); }

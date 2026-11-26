@@ -4,6 +4,7 @@
 const crypto = require("crypto");
 const { DH } = require("./shared");
 const game = require("./game");
+const { cleanPack } = require("./packs");
 
 const MAX_ROOMS = 200;
 const MAX_PLAYERS = 60;
@@ -81,6 +82,10 @@ class Room {
     do { this.code = String(100000 + crypto.randomInt(900000)); } while (rooms.has(this.code));
     this.hostToken = token();
     this.settings = cleanSettings(settings);
+    // a teacher-made pack travels with the room (it lives in the teacher's browser, not on the server)
+    this.customPack = /^my:/.test(this.settings.pack) ? cleanPack(settings && settings.customPack) : null;
+    if (/^my:/.test(this.settings.pack) && !this.customPack) this.settings.pack = "std_all";
+    if (this.customPack) this.settings.packName = this.customPack.name + " (" + this.customPack.questions.length + " ข้อ)";
     this.players = new Map();     // id -> player
     this.kicked = new Set();      // tokens that may not come back
     this.phase = "LOBBY";
@@ -294,7 +299,11 @@ function handle(sock, text) {
     else if (m.t === "host:lobby") room.backToLobby();
     else if (m.t === "host:next" && room.game) game.next(room);
     else if (m.t === "host:botspeed") room.botSpeed = Math.max(0.05, Math.min(1, Number(m.speed) || 1));
-    else if (m.t === "host:settings") { room.settings = cleanSettings(m.settings); room.push(); }
+    else if (m.t === "host:settings") {
+      // the question pack is fixed when the room is made (a teacher pack travels with host:create)
+      room.settings = Object.assign(cleanSettings(m.settings), { pack: room.settings.pack, packName: room.settings.packName });
+      room.push();
+    }
     else if (m.t === "host:close") room.close();
     return;
   }

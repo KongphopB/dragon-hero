@@ -88,7 +88,7 @@ function next(room, p) {
 function startQuestion(room, p) {
   const game = room.game, r = p.run;
   const st = DH.STAGES[r.stageIdx];
-  const all = G().packQuestions(room.settings.pack);
+  const all = G().packQuestions(room);
   let pool = all.filter((q) => q.stage === st.stage);
   if (!pool.length) {
     const stages = [...new Set(all.map((q) => q.stage))].sort((a, b) => Math.abs(a - st.stage) - Math.abs(b - st.stage));

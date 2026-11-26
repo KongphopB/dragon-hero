@@ -49,6 +49,10 @@
 | Student phone during the game (มือถือระหว่างเกม) | `classroom/js/play/game.js` | — |
 | Game screen styles (หน้าตาจอเกม) | `classroom/css/host-game.css` (teacher), `classroom/css/play-game.css` (phone) | — |
 | Classroom page styles (หน้าตาห้องเรียน) | `classroom/css/classroom.css` | — |
+| Teacher question packs editor: pack list, bank picker (หน้าแต่งชุดโจทย์) | `classroom/editor.html`, `classroom/js/editor/editor.js`, styles `classroom/css/editor.css` | — |
+| Writing one question: scene, forces, answer arrows, try-it (ฟอร์มแต่งโจทย์) | `classroom/js/editor/qform.js` | — |
+| Where teacher packs are saved, export/import file (ที่เก็บชุดโจทย์ครู) | `classroom/js/editor/store.js` | — |
+| Server check of a teacher pack (ตรวจชุดโจทย์ครูฝั่งเซิร์ฟเวอร์) | `server/packs.js` | `npm test` |
 
 **Regenerate** = `python tools/avatar/build_parts.py` (≈40 s; add `--preview` to also write `tools/avatar/preview.png`).
 
@@ -127,8 +131,10 @@ dragon hero/
 │  ├─ index.html            # Landing: student code entry / teacher "create room"
 │  ├─ host.html             # Teacher: room setup, then the lobby (later: the game on the projector)
 │  ├─ play.html             # Student phone: character, waiting (later: answering)
-│  ├─ css/                  # classroom.css (landing/setup/lobby), host-game.css, play-game.css
+│  ├─ editor.html           # Teacher question packs: pick from the bank or write new questions
+│  ├─ css/                  # classroom.css (landing/setup/lobby), host-game.css, play-game.css, editor.css
 │  └─ js/                   # landing, setup, packs, lobby, play, net (WebSocket), qr
+│     ├─ editor/            # question pack editor: store (localStorage + file), qform (one question), editor (page)
 │     ├─ host/              # teacher game screen: game (router, world, top bar), story, question, battle, board, summary, selfpaced (live ranking)
 │     └─ play/              # student phone during the game: game.js, scene.js (hero vs monster), tactics.js (hand, hearts, ultimate, reward)
 ├─ server/                  # Node classroom server, no npm packages
@@ -139,6 +145,7 @@ dragon hero/
 │  ├─ game.js               # Class game loop: questions, grading, damage, battles, boss, ranking, CSV
 │  ├─ tactics.js            # Class tactics: intents, cards, hearts, ultimates, class shield, card reward
 │  ├─ selfpaced.js          # Self-paced mode: per-student runs, ending when all are done
+│  ├─ packs.js              # Rebuilds a teacher pack sent with a new room (never trusts the page)
 │  └─ test.js               # npm test: end-to-end test over real WebSockets
 ├─ tools/
 │  ├─ stamp.py              # Cache-busting ?v= stamps (run before every push)
@@ -171,4 +178,5 @@ dragon hero/
 11. **Class game loop (sync mode):** `INTRO → ENCOUNTER → QUESTION → REVEAL → BATTLE → BOARD → …`, a stage ends in `MON_DEFEAT` / `MON_ESCAPE`, the dragon in `VICTORY` / `DEFEAT`, then `FINAL` (podium) and `SUMMARY`. The server owns the clock (`endsAt` timestamps; clients correct for clock skew), grades with `js/core/grading.js`, and picks questions with `js/core/adaptive.js` using the whole class's mistakes. Monster HP = questions × base damage × 0.65 × number of players. A question closes early once every connected student has answered. Phones never receive the answer key before REVEAL (`publicQuestion`). The BATTLE shows the 3 fastest full-marks answers and up to 2 wrong ones (topped up with more correct answers).
 12. **Class tactics (room option "cards", on by default):** one monster intent per question for the whole class (same weights as single-player); every student has their own hand (starts with their job's card), 3 hearts kept across stages, and an ultimate gauge. **Class shield (feature 4):** if at least 70% of the class answers at least half right, the monster's move fails for everyone that turn (no hearts lost, no stealing, no healing) and wrong attackers block instead of getting hit. Charge heals the monster 15% if the class deals less than half its possible base damage; regen heals 15% if fewer than half get full marks. In class the server owns the clock, so ❄️ freeze gives the full speed bonus instead of stopping time; x-ray / cut hints are sent by the server because phones never hold the key. After each monster every student picks 1 of 3 cards (mage 4); the teacher can move on and the rest get a random card.
 13. **Self-paced mode (room setting mode "self"):** the room stays in phase `SELF`; each student has `p.run` with their own phase (`ENCOUNTER → QUESTION → REVEAL → BATTLE → … → MON_DEFEAT / MON_ESCAPE → next stage → … → their own dragon → VICTORY / DEFEAT → DONE`) and moves on with the phone's own button, like single-player: their own monsters with single-player HP (escaped monsters strengthen *their* dragon), questions from their own mistakes, no class shield. **A student finishing early ends nothing:** the game moves to FINAL (podium) only when every connected student is DONE or the teacher presses ⏹ จบเกม. While it runs the teacher screen shows only the live damage ranking (with a ✅ for who has finished). FINAL / SUMMARY are shared with the class game; the podium counts how many beat their dragon.
-14. **localStorage keys:** `dh_solo_char` (character), `dh_solo_run` (saved run), `dh_tut_done` (tutorial finished), `dh_sfx` (sound on/off), `dh_unlocks` (cosmetic unlocks), `dh_host_setup` (teacher's last room settings), `dh_cl_<code>` (student's token for one room).
+14. **Teacher question packs:** a pack is `{id: "my:…", name, desc, items}`; each item is either `{ref: <bank question id>}` or `{q: <written question>}` (scenes `flat`, `inc`, `r` with one object; key `ex = [[force, angle]]`). Packs live only in the teacher's browser (`localStorage` `dh_packs`) and move between computers as a `.json` file (kind `dragon-hero-pack`). When a room is created with a `my:` pack the page sends the whole pack as `settings.customPack`; `server/packs.js` (`cleanPack`) rebuilds every written question field by field (known forces only, numbers clamped, no HTML) and drops anything invalid. If nothing usable is left the room falls back to `std_all`. Both class and self-paced modes take questions through `packQuestions(room)` in `server/game.js`. Bank questions in a pack are references, so fixes to the bank reach old packs; to change one, the editor copies it into a written question.
+15. **localStorage keys:** `dh_solo_char` (character), `dh_solo_run` (saved run), `dh_tut_done` (tutorial finished), `dh_sfx` (sound on/off), `dh_unlocks` (cosmetic unlocks), `dh_host_setup` (teacher's last room settings), `dh_packs` (teacher question packs), `dh_cl_<code>` (student's token for one room).

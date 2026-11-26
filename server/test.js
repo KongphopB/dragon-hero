@@ -170,6 +170,7 @@ async function main() {
     await gameTest();
     await tacticsTest();
     await selfPacedTest();
+    await packsTest();
   } catch (e) {
     failures++;
     console.log("  ✗ " + e.message);
@@ -452,6 +453,51 @@ async function selfPacedTest() {
   h2.send({ t: "host:start" });
   const auto = await h2.wait((m) => m.t === "game" && m.phase === "FINAL", 30000).catch((e) => { const last = h2.msgs.filter((m) => m.t === "game").pop(); console.log("    last teacher view:", last && last.phase, JSON.stringify(last && last.board && last.board.map((b) => [b.name, b.score, b.done]))); throw e; });
   ok(auto.selfTotal === 3, "when everyone is done the game moves to the podium on its own");
+  h2.send({ t: "host:close" });
+}
+
+// Teacher-made packs (milestone 5): the server rebuilds written questions and the game uses the pack.
+async function packsTest() {
+  console.log("Teacher packs");
+  const { cleanPack } = require("./packs");
+  const { DH } = require("./shared");
+  const mine = {
+    k: "inc", ia: 37, dot: 1, stage: 2, lv: "กลาง", topic: "incline", tg: "ลูกบอลบนพื้นเอียง", tm: 30,
+    t: "ลูกบอลวางนิ่งบนพื้นเอียง 37° ที่ฝืด <script>x</script>", why: "W ลง N ตั้งฉาก f ขึ้นตามพื้นเอียง",
+    bt: ["W", "N", "f", "F", "Z"], ex: [["W", 270], ["N", 127], ["f", 37], ["Q", 10]], evil: "<img onerror>"
+  };
+  const pack = cleanPack({ name: "ชุดทดสอบ", items: [{ ref: "s1_flat_rest" }, { q: mine }, { q: { k: "ws", t: "x", bt: ["W", "N"], ex: [["W", 270]] } }, { ref: "nope" }] });
+  ok(pack && pack.questions.length === 2, "a pack keeps bank references and valid written questions, drops the rest");
+  const w = pack.questions[1];
+  ok(w.k === "inc" && w.ia === 37 && w.dot === 1 && w.type === "B" && w.bt.join() === "W,N,f,F" && w.ex.length === 3 && !w.evil && w.t.indexOf("<") < 0,
+    "a written question is rebuilt field by field (scene, forces, key, text)");
+  ok(DH.Grading.gradeAnswer(w, { all: { W: 270, N: 127, f: 37 } }).acc === 1, "the game grades a written question with its own key");
+  ok(cleanPack({ items: [{ q: { k: "flat", t: "", bt: ["W", "N"], ex: [] } }] }) === null, "an empty or keyless pack is refused");
+
+  // a class game that uses the teacher's pack
+  const host = client(); await host.ready;
+  const items = [{ q: Object.assign({}, mine, { stage: 1 }) }];
+  host.send({ t: "host:create", settings: { cls: "pack", pack: "my:abc", customPack: { name: "ชุดของครู", items }, length: "short", pace: "untimed", opts: { cards: false } } });
+  const room = await host.wait((m) => m.t === "room");
+  ok(room.settings.pack === "my:abc" && /ชุดของครู/.test(room.settings.packName), "the room keeps the teacher's pack and its name");
+  const kid = client(); await kid.ready;
+  kid.send({ join: 1, t: "join", code: room.code });
+  await kid.wait((m) => m.t === "joined");
+  kid.send({ t: "char", name: "ทดสอบ", job: "mage", look: LOOK });
+  await host.wait((m) => m.t === "lobby" && m.players.length === 1);
+  host.send({ t: "host:start" });
+  host.send({ t: "host:next" });
+  await host.next((m) => m.t === "game" && m.phase === "ENCOUNTER");
+  host.send({ t: "host:next" });
+  const q = await kid.wait((m) => m.t === "game" && m.phase === "QUESTION");
+  ok(/ลูกบอลวางนิ่งบนพื้นเอียง 37°/.test(q.q.t) && !q.q.ex && !q.q.why, "students get the teacher's question (without its key)");
+  host.send({ t: "host:close" });
+
+  // a "my:" pack that arrives empty falls back to the standard pack
+  const h2 = client(); await h2.ready;
+  h2.send({ t: "host:create", settings: { pack: "my:missing" } });
+  const r2 = await h2.wait((m) => m.t === "room");
+  ok(r2.settings.pack === "std_all", "a missing teacher pack falls back to the standard pack");
   h2.send({ t: "host:close" });
 }
 

@@ -38,7 +38,7 @@
   try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
   var st = {
     cls: saved.cls || "",
-    pack: DH.PACKS.some(function (p) { return p.id === saved.pack; }) ? saved.pack : DH.PACKS[0].id,
+    pack: DH.allPacks().some(function (p) { return p.id === saved.pack; }) ? saved.pack : DH.PACKS[0].id,
     mode: MODES[saved.mode] ? saved.mode : "sync",
     length: LENGTHS[saved.length] ? saved.length : "medium",
     pace: PACES[saved.pace] ? saved.pace : "normal",
@@ -49,7 +49,7 @@
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify({ cls: st.cls, pack: st.pack, mode: st.mode, length: st.length, pace: st.pace, opts: st.opts })); } catch (e) { /* ignore */ }
   }
-  function pack() { return DH.PACKS.filter(function (p) { return p.id === st.pack; })[0]; }
+  function pack() { return DH.allPacks().filter(function (p) { return p.id === st.pack; })[0] || DH.PACKS[0]; }
   function total(len) { return LENGTHS[len].perStage.reduce(function (a, b) { return a + b; }, 0); }
 
   // Rough lesson length: answer time + answer key + battle per question, plus stage transitions and the ending.
@@ -76,12 +76,14 @@
   function packCard(p) {
     return '<div class="su-opt' + (p.id === st.pack ? " on" : "") + '" role="radio" tabindex="0" aria-checked="' + (p.id === st.pack) + '" data-pack="' + p.id + '">' +
       (p.recommended ? '<span class="su-rec">แนะนำ</span>' : '') +
+      (p.mine ? '<span class="su-rec su-mine">ของฉัน</span>' : '') +
       '<b class="su-name">' + esc(p.name) + '</b>' +
       '<span class="su-desc">' + esc(p.desc) + '</span>' +
       '<div class="su-meta"><span class="su-chip">📝 ' + p.count + ' ข้อ</span>' +
         p.topics.map(function (t) { return '<span class="su-chip">' + esc(DH.TOPIC_LABELS[t] || t) + '</span>'; }).join("") + '</div>' +
       levelBar(p) +
-      '<button type="button" class="su-peek" data-peek="' + p.id + '">👁 ดูตัวอย่างโจทย์</button>' +
+      '<span class="su-peek-row"><button type="button" class="su-peek" data-peek="' + p.id + '">👁 ดูตัวอย่างโจทย์</button>' +
+        (p.mine ? '<a class="su-peek su-edit" href="editor.html#' + encodeURIComponent(p.id) + '">✏️ แก้ชุดนี้</a>' : '') + '</span>' +
     '</div>';
   }
 
@@ -144,8 +146,8 @@
             '<div class="su-sec-head"><span class="su-num">1</span><h2>ชุดโจทย์</h2><span>เลือก 1 ชุด</span></div>' +
             '<div class="su-field"><label for="clsName">ชื่อห้อง / ชั้นเรียน <span style="color:var(--mute);font-weight:400">(ไม่บังคับ · ขึ้นบนจอและไฟล์ผลคะแนน)</span></label>' +
               '<input id="clsName" maxlength="30" placeholder="เช่น ม.4/2 คาบ 3" value="' + esc(st.cls) + '"></div>' +
-            '<div class="su-opts packs" role="radiogroup" aria-label="ชุดโจทย์">' + DH.PACKS.map(packCard).join("") +
-              '<div class="su-opt is-soon"><span class="su-plus">＋</span><b>ชุดที่ครูแต่งเอง</b><span class="su-desc">แต่งโจทย์ของตัวเองได้ในหน้า "แต่งชุดโจทย์" (เร็วๆ นี้)</span></div>' +
+            '<div class="su-opts packs" role="radiogroup" aria-label="ชุดโจทย์">' + DH.allPacks().map(packCard).join("") +
+              '<a class="su-opt su-new" href="editor.html#new"><span class="su-plus">＋</span><b>แต่งชุดโจทย์ของครู</b><span class="su-desc">ใส่โจทย์จากคลัง หรือแต่งเองบนกระดาน FBD แล้วกลับมาเลือกที่นี่</span></a>' +
             '</div>' +
           '</section>' +
           '<section class="rpg-card su-sec">' +
@@ -198,7 +200,13 @@
     if (el.dataset.mode) return set("mode", el.dataset.mode);
     if (el.dataset.length) return set("length", el.dataset.length);
     if (el.dataset.pace) return set("pace", el.dataset.pace);
-    if (el.id === "btnCreate") { save(); return DH.Lobby.open({ cls: st.cls, pack: st.pack, mode: st.mode, length: st.length, pace: st.pace, opts: st.opts }); }
+    if (el.id === "btnCreate") {
+      save();
+      var settings = { cls: st.cls, pack: st.pack, mode: st.mode, length: st.length, pace: st.pace, opts: st.opts };
+      // a teacher pack lives in this browser, so it travels to the server with the new room
+      if (/^my:/.test(st.pack)) { var mine = DH.PackStore.get(st.pack); if (mine) settings.customPack = { name: mine.name, items: mine.items }; }
+      return DH.Lobby.open(settings);
+    }
     if (el.hasAttribute("data-close")) return closePeek();
     if (el.id === "peekPrev") return showPeek(-1);
     if (el.id === "peekNext") return showPeek(1);
@@ -225,7 +233,7 @@
   // ---------- sample question viewer ----------
   var peekPack = null, peekIdx = 0;
   function openPeek(id) {
-    peekPack = DH.PACKS.filter(function (p) { return p.id === id; })[0];
+    peekPack = DH.allPacks().filter(function (p) { return p.id === id; })[0];
     peekIdx = 0;
     document.getElementById("peek").hidden = false;
     showPeek(0);
